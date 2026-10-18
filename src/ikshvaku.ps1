@@ -757,7 +757,7 @@ function ikshvaku {
                 }
                 'upgrade' {
                     Write-Output 'ikshvaku upgrade'
-                    Write-Output '  Update Ikshvaku to the latest release. Homebrew users: brew upgrade ikshvaku'
+                    Write-Output '  Update Ikshvaku to the latest release. Homebrew users: brew upgrade ikshvakupem'
                 }
                 'remove' {
                     Write-Output 'ikshvaku remove <env>'

@@ -5,13 +5,13 @@ native package managers.
 
 ## Homebrew (macOS / Linux)
 
-The tap lives at [`ashish-jha-73/homebrew-ikshvaku`](https://github.com/ashish-jha-73/homebrew-ikshvaku)
-and contains `Formula/ikshvaku.rb`, which installs the payload from the
+The tap lives at [`ashish-jha-73/homebrew-ikshvakupem`](https://github.com/ashish-jha-73/homebrew-ikshvakupem)
+and contains `Formula/ikshvakupem.rb`, which installs the payload from the
 release tarball and prints the exact lines to add to your shell rc.
 
 ```bash
-brew tap ashish-jha-73/ikshvaku https://github.com/ashish-jha-73/homebrew-ikshvaku
-brew install ikshvaku
+brew tap ashish-jha-73/ikshvakupem https://github.com/ashish-jha-73/homebrew-ikshvakupem
+brew install ikshvakupem
 ```
 
 To bump the formula for a new release: update `version`, `url` and `sha256`

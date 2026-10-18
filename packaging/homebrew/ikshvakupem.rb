@@ -1,4 +1,4 @@
-class Ikshvaku < Formula
+class IkshvakuPEM < Formula
   desc "Lightweight Python environment manager powered by uv"
   homepage "https://github.com/ashish-jha-73/IkshvakuPEM"
   url "https://github.com/ashish-jha-73/IkshvakuPEM/releases/download/v1.4.0/ikshvaku-1.4.0.tar.gz"

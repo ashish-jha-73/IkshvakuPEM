@@ -927,7 +927,7 @@ ikshvaku() {
                     ;;
                 upgrade)
                     echo "ikshvaku upgrade"
-                    echo "  Update Ikshvaku to the latest release. Homebrew users: brew upgrade ikshvaku"
+                    echo "  Update Ikshvaku to the latest release. Homebrew users: brew upgrade ikshvakupem"
                     ;;
                 "")
                     echo "Usage: ikshvaku help <command>"
@@ -954,7 +954,7 @@ ikshvaku() {
                 return 1
             fi
             echo ""
-            echo "If you installed via Homebrew, run: brew upgrade ikshvaku"
+            echo "If you installed via Homebrew, run: brew upgrade ikshvakupem"
             echo "Restart your shell to load the new version."
             ;;
 

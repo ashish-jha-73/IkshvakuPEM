@@ -89,14 +89,16 @@ Already installed? One command:
 ikshvaku upgrade
 ```
 
-(Homebrew users: `brew upgrade ikshvaku`.)
+(Homebrew users: `brew upgrade ikshvakupem`.)
 
 ### Homebrew (macOS / Linux)
 
 ```bash
-brew tap ashish-jha-73/ikshvaku https://github.com/ashish-jha-73/homebrew-ikshvaku
-brew install ikshvaku
+brew tap ashish-jha-73/ikshvakupem https://github.com/ashish-jha-73/homebrew-ikshvakupem
+brew install ikshvakupem
 ```
+
+The Homebrew package is named `ikshvakupem`; the command it installs is `ikshvaku`.
 
 ### Use in CI (GitHub Action)
 
