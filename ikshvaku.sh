@@ -78,6 +78,20 @@ ikshvaku_activate_script() {
     fi
 }
 
+# Source a venv activate script without letting `set -e` (the user's or the
+# caller's) abort the shell on quirks inside the script. The user's errexit
+# state is restored afterwards.
+ikshvaku_source_activate() {
+    local act="$1" __ik_had_e=0 __ik_rc=0
+    case $- in *e*) __ik_had_e=1 ;; esac
+    set +e
+    # shellcheck disable=SC1090  # venv's activate script, path is dynamic by design
+    . "$act"
+    __ik_rc=$?
+    [ "$__ik_had_e" -eq 1 ] && set -e
+    return "$__ik_rc"
+}
+
 # Print the path to an environment's python interpreter.
 ikshvaku_env_python() {
     local env_path="$1"
@@ -215,7 +229,7 @@ ikshvaku() {
             ikshvaku_registry_set "$dir" "$name"
             echo "Linked $dir -> '$name'"
             [ -n "${IKSHVAKU_ACTIVE:-}" ] && [ "$IKSHVAKU_ACTIVE" != "$name" ] && deactivate >/dev/null 2>&1
-            ikshvaku activate "$name"
+            ikshvaku activate "$name" || echo "⚠️  could not auto-activate '$name' — run: ikshvaku activate $name"
             ;;
 
         link)
@@ -266,8 +280,7 @@ ikshvaku() {
             [ "$target" = "${IKSHVAKU_ACTIVE:-}" ] && { echo "Already in '$target'"; return 0; }
             [ ! -d "$ENV_DIR/$target" ] && { echo "Env not found: $target"; return 1; }
             env_act=$(ikshvaku_activate_script "$ENV_DIR/$target") || { echo "Env not found"; return 1; }
-            # shellcheck disable=SC1090  # venv's activate script, path is dynamic by design
-            source "$env_act"
+            ikshvaku_source_activate "$env_act" || echo "⚠️  activation of '$target' reported errors"
             export IKSHVAKU_ACTIVE="$target"
             ;;
 
@@ -314,8 +327,7 @@ ikshvaku() {
             # cycle (a subshell), so the current shell — and any env you have
             # active in it — is never disturbed.
             (
-                # shellcheck disable=SC1090  # venv's activate script, path is dynamic by design
-                source "$env_act"
+                ikshvaku_source_activate "$env_act" || true
                 export IKSHVAKU_ACTIVE="$env_name"
                 uv pip install --python "$env_py" "$@"
             )
