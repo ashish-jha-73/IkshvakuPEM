@@ -267,7 +267,10 @@ jobs:
         run: |
           $env:Path = "$env:USERPROFILE\.local\bin;$env:Path"
           . "$env:USERPROFILE\.ikshvaku\ikshvaku.ps1"
-          $j = (ikshvaku list --json | Out-String) | ConvertFrom-Json
+          Write-Host "diagnostic: $(Select-String -Path "$env:USERPROFILE\.ikshvaku\ikshvaku.ps1" -Pattern 'IkshvakuVersion =' | Select-Object -First 1 | ForEach-Object { $_.Line.Trim() })"
+          $raw = ikshvaku list --json | Out-String
+          Write-Host "diagnostic raw list: $raw"
+          $j = $raw | ConvertFrom-Json
           if (-not $j) { throw '❌ list --json' }
           $s = (ikshvaku status --json | Out-String) | ConvertFrom-Json
           if (-not $s.version) { throw '❌ status --json' }
@@ -350,7 +353,10 @@ jobs:
         run: |
           $env:Path = "$env:USERPROFILE\.local\bin;$env:Path"
           . "$env:USERPROFILE\.ikshvaku\ikshvaku.ps1"
-          $j = (ikshvaku list --json | Out-String) | ConvertFrom-Json
+          Write-Host "diagnostic: $(Select-String -Path "$env:USERPROFILE\.ikshvaku\ikshvaku.ps1" -Pattern 'IkshvakuVersion =' | Select-Object -First 1 | ForEach-Object { $_.Line.Trim() })"
+          $raw = ikshvaku list --json | Out-String
+          Write-Host "diagnostic raw list: $raw"
+          $j = $raw | ConvertFrom-Json
           if (-not $j) { throw '❌ list --json' }
           $s = (ikshvaku status --json | Out-String) | ConvertFrom-Json
           if (-not $s.version) { throw '❌ status --json' }
