@@ -1,10 +1,10 @@
 # Ikshvaku installer for Windows (PowerShell 5.1+ and PowerShell 7).
 # Run from the repository root:  .\install.ps1
-# NOTE: no BOM on this file — it is executed via `irm | iex` by the one-liner,
+# NOTE: no BOM on this file - it is executed via `irm | iex` by the one-liner,
 # where a BOM would break Invoke-Expression. Avoid file-only directives
 # (#Requires); use runtime checks instead.
 if ($PSVersionTable.PSVersion.Major -lt 5) {
-    Write-Host '❌ Ikshvaku requires PowerShell 5.1 or newer' -ForegroundColor Red
+    Write-Host '[X] Ikshvaku requires PowerShell 5.1 or newer' -ForegroundColor Red
     exit 1
 }
 
@@ -24,13 +24,13 @@ $IkshvakuVersion = '1.3.0'
 $IkTag = $env:IKSHVAKU_VERSION
 if ($IkTag) {
     if ($IkTag -notmatch '^[v]?[0-9]+\.[0-9]+\.[0-9]+$') {
-        Write-Host "❌ invalid IKSHVAKU_VERSION '$IkTag' — expected e.g. 1.2.0 or v1.2.0" -ForegroundColor Red
+        Write-Host "[X] invalid IKSHVAKU_VERSION '$IkTag' - expected e.g. 1.2.0 or v1.2.0" -ForegroundColor Red
         exit 1
     }
     $IkTag = 'v' + ($IkTag -replace '^v', '')
 }
 
-# Where this script lives — and where its payload files are.
+# Where this script lives - and where its payload files are.
 # Payloads live in src/ in this repository. When run remotely
 # (irm ... | iex) $PSScriptRoot is empty: fetch them from GitHub instead.
 # IKSHVAKU_REPO_RAW overrides the source (useful for forks and tests).
@@ -49,17 +49,17 @@ if (-not $payloadDir) {
     $payloadDir = Join-Path ([IO.Path]::GetTempPath()) ("ikshvaku-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
     New-Item -ItemType Directory -Force -Path $payloadDir | Out-Null
     $fetchedRemotely = $true
-    Write-Host ':: Remote install — downloading Ikshvaku files...'
+    Write-Host ':: Remote install - downloading Ikshvaku files...'
     foreach ($f in @('ikshvaku.ps1', 'ikshvaku.cmd', 'uninstall.ps1')) {
         try {
             # payloads live under src/ in current releases; older tags had
-            # them flat at the repository root — try both
+            # them flat at the repository root - try both
             Invoke-WebRequest -Uri "$rawBase/src/$f" -OutFile (Join-Path $payloadDir $f) -UseBasicParsing
         } catch {
             try {
                 Invoke-WebRequest -Uri "$rawBase/$f" -OutFile (Join-Path $payloadDir $f) -UseBasicParsing
             } catch {
-                Write-Host "❌ download failed ($f): $_" -ForegroundColor Red
+                Write-Host "[X] download failed ($f): $_" -ForegroundColor Red
                 exit 1
             }
         }
@@ -67,23 +67,23 @@ if (-not $payloadDir) {
 }
 
 Write-Host ":: Installing Ikshvaku $IkshvakuVersion..."
-if ($IkTag) { Write-Host ":: Version pinned — installing payload from $IkTag" }
+if ($IkTag) { Write-Host ":: Version pinned - installing payload from $IkTag" }
 Write-Host ":: PowerShell $($PSVersionTable.PSVersion) ($($PSVersionTable.PSEdition) Edition)"
 
 # --- uv: powers all environments. Downloaded automatically if missing. ---
 if (Get-Command uv -ErrorAction SilentlyContinue) {
     Write-Host ":: uv found at $((Get-Command uv).Source)"
 } else {
-    Write-Host ':: uv not found — downloading uv...' -ForegroundColor Yellow
+    Write-Host ':: uv not found - downloading uv...' -ForegroundColor Yellow
     try {
         Invoke-RestMethod -Uri $UvInstaller | Invoke-Expression
     } catch {
-        Write-Host "❌ uv download failed: $_" -ForegroundColor Red
+        Write-Host "[X] uv download failed: $_" -ForegroundColor Red
         exit 1
     }
     $env:Path = "$BinDir;$env:Path"
     if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
-        Write-Host '❌ uv installation failed. Install it manually: https://docs.astral.sh/uv/' -ForegroundColor Red
+        Write-Host '[X] uv installation failed. Install it manually: https://docs.astral.sh/uv/' -ForegroundColor Red
         exit 1
     }
     Write-Host ':: uv installed' -ForegroundColor Green
@@ -97,7 +97,7 @@ try {
         Write-Host ":: Added $BinDir to your user PATH (restart your shell to pick it up)"
     }
 } catch {
-    Write-Host "⚠ Could not update the user PATH: $_" -ForegroundColor Yellow
+    Write-Host "[WARN] Could not update the user PATH: $_" -ForegroundColor Yellow
 }
 
 foreach ($dir in @($InstallDir, $BinDir, $EnvDir)) {
@@ -131,13 +131,13 @@ if ((Get-ExecutionPolicy -Scope CurrentUser) -in @('Restricted', 'Undefined')) {
         Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
         Write-Host ':: Set execution policy to RemoteSigned (CurrentUser)'
     } catch {
-        Write-Host '⚠ Could not set the execution policy — the function may not load from $PROFILE.' -ForegroundColor Yellow
+        Write-Host '[WARN] Could not set the execution policy - the function may not load from $PROFILE.' -ForegroundColor Yellow
     }
 }
 
 Write-Host ':: Installed successfully' -ForegroundColor Green
 Write-Host ':: Restart your shell, or run:  . $PROFILE'
 Write-Host ':: PowerShell: full function + tab completion.'
-Write-Host ':: cmd: works too — activate/deactivate natively, the rest via PowerShell.'
+Write-Host ':: cmd: works too - activate/deactivate natively, the rest via PowerShell.'
 Write-Host ':: To support us: https://github.com/ashish-jha-73/IkshvakuPEM'
 Write-Host ':: To remove Ikshvaku later, run: ~\.ikshvaku\uninstall.ps1'
