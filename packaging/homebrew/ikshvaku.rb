@@ -1,10 +1,10 @@
 class Ikshvaku < Formula
   desc "Lightweight Python environment manager powered by uv"
   homepage "https://github.com/ashish-jha-73/IkshvakuPEM"
-  url "https://github.com/ashish-jha-73/IkshvakuPEM/releases/download/v1.3.0/ikshvaku-1.3.0.tar.gz"
-  sha256 "126dc6cdb8eec1bea4de2b3002de6c91cf58c1d34b7844514833a1c772db0c0a"
+  url "https://github.com/ashish-jha-73/IkshvakuPEM/releases/download/v1.4.0/ikshvaku-1.4.0.tar.gz"
+  sha256 "efc2571f05ab7ac3c3c3dc63c9bf6660dccd64c4a6d9e8ba1cdee48603e880fd"
   license "MIT"
-  version "1.3.0"
+  version "1.4.0"
 
   def install
     (share/"ikshvaku").install "src/ikshvaku.sh"
@@ -25,7 +25,7 @@ class Ikshvaku < Formula
 
   test do
     ENV["HOME"] = testpath
-    assert_match "ikshvaku 1.3.0",
+    assert_match "ikshvaku 1.4.0",
       shell_output("source #{share}/ikshvaku/ikshvaku.sh && ikshvaku --version")
   end
 end
