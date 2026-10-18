@@ -9,7 +9,7 @@ license=('MIT')
 depends=('bash' 'curl' 'uv')
 optdepends=('wget: alternative downloader for the uv bootstrap')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('REPLACE_WITH_RELEASE_SHA256')
+sha256sums=('126dc6cdb8eec1bea4de2b3002de6c91cf58c1d34b7844514833a1c772db0c0a')
 
 package() {
   install -Dm644 "$srcdir/$pkgname-$pkgver/src/ikshvaku.sh" \
