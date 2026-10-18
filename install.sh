@@ -48,7 +48,7 @@ INSTALL_DIR="$HOME/.ikshvaku"
 BIN_DIR="$HOME/.local/bin"
 ENV_DIR="$HOME/.Python-Env"
 UV_INSTALLER="https://astral.sh/uv/install.sh"
-IKSHVAKU_VERSION="1.1.0"
+IKSHVAKU_VERSION="1.2.0"
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'

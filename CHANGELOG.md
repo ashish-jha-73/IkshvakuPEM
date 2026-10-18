@@ -3,6 +3,34 @@
 All notable changes to Ikshvaku are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/); versioning follows [SemVer](https://semver.org/).
 
+## [1.2.0] — 2026-10-19
+
+Memory, hygiene, and scripting — environments now track their own lifecycle.
+
+### Added
+- **Usage tracking** — every environment records when it was last used
+  (creation, activation, install, run). Plain-text state in
+  `~/.ikshvaku/state/usage/`.
+- **`ikshvaku list --size`** — per-environment disk usage and last-used date,
+  plus totals for all envs and the uv cache.
+- **`ikshvaku cleanup`** — finds environments unused for N days (default 90,
+  configurable). Dry-run by default; `--apply` deletes; `--cache` prunes uv's
+  cache. Linked projects and the active environment are always kept.
+- **`ikshvaku run <env> <cmd...>`** — run any command inside an environment
+  without touching the current shell; exit codes propagate for scripts and CI.
+- **`ikshvaku export <env>`** — print installed packages (`> requirements.txt`).
+- **`ikshvaku clone <src> <dst>`** — duplicate an environment on the same
+  interpreter, packages included.
+- **`init` bootstrap** — `ikshvaku init` in a directory with a
+  `requirements.txt` installs its dependencies automatically.
+- **`ikshvaku config`** — `python_default` (used by `create`/`init`) and
+  `cleanup_days`; stored in `~/.ikshvaku/config`, shared across shells.
+
+### Fixed
+- Shell-integration helpers no longer abort under `set -e` when state files
+  (config/registry/usage) are missing — "not found" is now a clean empty
+  result everywhere.
+
 ## [1.1.0] — 2026-10-19
 
 The release that makes Ikshvaku project-aware.

@@ -2,7 +2,7 @@
 # Dot-sourced (from $PROFILE): defines the ikshvaku function.
 # Run as a script (from the ikshvaku.cmd shim): dispatches ikshvaku directly.
 
-$global:IkshvakuVersion = '1.1.0'
+$global:IkshvakuVersion = '1.2.0'
 $global:IkshvakuEnvDir = Join-Path $env:USERPROFILE '.Python-Env'
 $global:IkshvakuHome = Join-Path $env:USERPROFILE '.ikshvaku'
 $global:IkshvakuUvInstaller = 'https://astral.sh/uv/install.ps1'
@@ -70,14 +70,77 @@ function New-IkshvakuEnv {
     if (-not (Install-IkshvakuUv)) { return $false }
     New-Item -ItemType Directory -Force -Path $global:IkshvakuEnvDir | Out-Null
     $uvArgs = @('venv', '--seed')
+    if (-not $PythonVersion) { $PythonVersion = Get-IkshvakuConfig 'python_default' }
     if ($PythonVersion) { $uvArgs += @('--python', $PythonVersion) }
     $uvArgs += $envPath
     & uv @uvArgs
     if ($LASTEXITCODE -ne 0) { return $false }
     # --seed installs real pip; the shim below is only a fallback
     Set-IkshvakuPipShim $envPath
+    Touch-IkshvakuUsage $Name
     Write-Host "Environment '$Name' created" -ForegroundColor Green
     return $true
+}
+
+# --- state: usage tracking & config ---
+
+function Touch-IkshvakuUsage {
+    param([string]$EnvName)
+    try {
+        $dir = Join-Path (Join-Path $global:IkshvakuHome 'state') 'usage'
+        New-Item -ItemType Directory -Force -Path $dir | Out-Null
+        $now = [DateTimeOffset]::Now
+        Set-Content -LiteralPath (Join-Path $dir $EnvName) -Value ("{0} {1}" -f $now.ToUnixTimeSeconds(), $now.ToString('yyyy-MM-dd HH:mm')) -ErrorAction SilentlyContinue
+    } catch { }
+}
+
+function Get-IkshvakuUsageLastUsed {
+    param([string]$EnvName)
+    $f = Join-Path (Join-Path $global:IkshvakuHome 'state') (Join-Path 'usage' $EnvName)
+    if (Test-Path $f) {
+        $line = (Get-Content -LiteralPath $f -ErrorAction SilentlyContinue | Select-Object -First 1)
+        $i = $line.IndexOf(' ')
+        if ($i -gt 0) { return $line.Substring($i + 1) }
+    }
+    return 'never'
+}
+
+function Get-IkshvakuConfig {
+    param([string]$Key)
+    $cfg = Join-Path $global:IkshvakuHome 'config'
+    if (-not (Test-Path $cfg)) { return $null }
+    foreach ($line in @(Get-Content -LiteralPath $cfg -ErrorAction SilentlyContinue)) {
+        $i = $line.IndexOf('=')
+        if ($i -lt 1) { continue }
+        if ($line.Substring(0, $i) -eq $Key) { return $line.Substring($i + 1) }
+    }
+    return $null
+}
+
+function Set-IkshvakuConfig {
+    param([string]$Key, [string]$Value)
+    New-Item -ItemType Directory -Force -Path $global:IkshvakuHome | Out-Null
+    $cfg = Join-Path $global:IkshvakuHome 'config'
+    $kept = @()
+    foreach ($line in @(Get-Content -LiteralPath $cfg -ErrorAction SilentlyContinue)) {
+        $i = $line.IndexOf('=')
+        if ($i -lt 1) { continue }
+        if ($line.Substring(0, $i) -ne $Key) { $kept += $line }
+    }
+    $kept += "$Key=$Value"
+    Set-Content -LiteralPath $cfg -Value $kept
+}
+
+function Test-IkshvakuRegistryEnvLinked {
+    param([string]$EnvName)
+    $reg = Join-Path $global:IkshvakuHome 'registry'
+    if (-not (Test-Path $reg)) { return $false }
+    foreach ($line in @(Get-Content -LiteralPath $reg -ErrorAction SilentlyContinue)) {
+        $i = $line.IndexOf('|')
+        if ($i -lt 1) { continue }
+        if ($line.Substring($i + 1) -eq $EnvName) { return $true }
+    }
+    return $false
 }
 
 # --- registry: project directory <-> environment links ---
@@ -193,7 +256,30 @@ function ikshvaku {
                 Write-Host 'No environments yet. Create one: ikshvaku create <env>'
                 return
             }
-            $envs | ForEach-Object { Write-Host $_.Name }
+            if ($rest[0] -eq '--size') {
+                Write-Output ("{0,-18} {1,8}  {2}" -f 'ENV', 'SIZE', 'LAST USED')
+                foreach ($e in $envs) {
+                    $sum = (Get-ChildItem -LiteralPath $e.FullName -Recurse -File -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum
+                    $mb = 0
+                    if ($sum) { $mb = [math]::Round($sum / 1MB, 1) }
+                    Write-Output ("{0,-18} {1,6} MB  {2}" -f $e.Name, $mb, (Get-IkshvakuUsageLastUsed $e.Name))
+                }
+                Write-Output ''
+                $total = (Get-ChildItem -LiteralPath $global:IkshvakuEnvDir -Recurse -File -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum
+                $tmb = 0
+                if ($total) { $tmb = [math]::Round($total / 1MB, 1) }
+                Write-Output ("Envs total: {0} MB" -f $tmb)
+                $uvCache = Join-Path $HOME '.cache\uv'
+                if ($env:OS -eq 'Windows_NT') { $uvCache = Join-Path $env:LOCALAPPDATA 'uv\cache' }
+                if (Test-Path $uvCache) {
+                    $cs = (Get-ChildItem -LiteralPath $uvCache -Recurse -File -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum
+                    $cmb = 0
+                    if ($cs) { $cmb = [math]::Round($cs / 1MB, 1) }
+                    Write-Output ("uv cache:   {0} MB  (prune with: ikshvaku cleanup --apply --cache)" -f $cmb)
+                }
+            } else {
+                $envs | ForEach-Object { Write-Host $_.Name }
+            }
         }
 
         'create' {
@@ -223,6 +309,18 @@ function ikshvaku {
             }
             Set-IkshvakuRegistryLink $dir $name
             Write-Host "Linked $dir -> '$name'" -ForegroundColor Green
+            # bootstrap: install dependencies if the project ships a requirements.txt
+            $reqs = Join-Path $dir 'requirements.txt'
+            if ((Test-Path $reqs) -and (Test-Path (Join-Path $global:IkshvakuEnvDir $name))) {
+                if (Get-Command uv -ErrorAction SilentlyContinue) {
+                    Write-Host 'Found requirements.txt — installing dependencies...'
+                    $pyExe = Get-IkshvakuEnvPython (Join-Path $global:IkshvakuEnvDir $name)
+                    & uv pip install --python $pyExe -r $reqs
+                    if ($LASTEXITCODE -ne 0) {
+                        Write-Host '⚠️  dependency installation failed — the env is still usable' -ForegroundColor Yellow
+                    }
+                }
+            }
             if ($env:IKSHVAKU_ACTIVE -and $env:IKSHVAKU_ACTIVE -ne $name) {
                 if (Get-Command deactivate -ErrorAction SilentlyContinue) { deactivate | Out-Null }
             }
@@ -296,6 +394,7 @@ function ikshvaku {
             }
             . $actScript
             $env:IKSHVAKU_ACTIVE = $target
+            Touch-IkshvakuUsage $target
         }
 
         'deactivate' {
@@ -339,6 +438,7 @@ function ikshvaku {
                 Write-Host "Env '$envName' is missing its activate script" -ForegroundColor Red
                 return
             }
+            Touch-IkshvakuUsage $envName
 
             # Run the install inside an isolated activate -> install -> deactivate
             # cycle. $env: variables are process-wide in PowerShell, so the
@@ -358,6 +458,164 @@ function ikshvaku {
                     Remove-Item function:\deactivate -ErrorAction SilentlyContinue
                 }
             }
+        }
+
+        'run' {
+            if ($rest.Count -lt 2) { Write-Host 'Usage: ikshvaku run <env> <command...>'; return }
+            $envPath = Join-Path $global:IkshvakuEnvDir $rest[0]
+            if (-not (Test-Path $envPath)) { Write-Host "Env not found: $($rest[0])" -ForegroundColor Red; return }
+            $actScript = Join-Path (Join-Path $envPath 'Scripts') 'Activate.ps1'
+            if (-not (Test-Path $actScript)) {
+                Write-Host "Env '$($rest[0])' has no PowerShell activation script (Scripts/Activate.ps1) — it may have been created on Unix" -ForegroundColor Red
+                return
+            }
+            $cmdArgs = @($rest[1..($rest.Count - 1)])
+            Touch-IkshvakuUsage $rest[0]
+            $oldVenv = $env:VIRTUAL_ENV
+            $oldActive = $env:IKSHVAKU_ACTIVE
+            . $actScript
+            $env:IKSHVAKU_ACTIVE = $rest[0]
+            try {
+                if ($cmdArgs.Count -gt 1) {
+                    & $cmdArgs[0] @($cmdArgs[1..($cmdArgs.Count - 1)])
+                } else {
+                    & $cmdArgs[0]
+                }
+            } finally {
+                if (Get-Command deactivate -ErrorAction SilentlyContinue) { deactivate }
+                if ($oldVenv) { $env:VIRTUAL_ENV = $oldVenv } else { Remove-Item Env:\VIRTUAL_ENV -ErrorAction SilentlyContinue }
+                if ($oldActive) { $env:IKSHVAKU_ACTIVE = $oldActive } else { Remove-Item Env:\IKSHVAKU_ACTIVE -ErrorAction SilentlyContinue }
+                if (-not $oldVenv) {
+                    Remove-Item function:\deactivate -ErrorAction SilentlyContinue
+                }
+            }
+        }
+
+        'export' {
+            if (-not $rest[0]) { Write-Host 'Usage: ikshvaku export <env>  (> requirements.txt)'; return }
+            $envPath = Join-Path $global:IkshvakuEnvDir $rest[0]
+            if (-not (Test-Path $envPath)) { Write-Host "Env not found: $($rest[0])" -ForegroundColor Red; return }
+            if (-not (Install-IkshvakuUv)) { return }
+            Touch-IkshvakuUsage $rest[0]
+            & uv pip freeze --python $envPath
+        }
+
+        'clone' {
+            if ($rest.Count -lt 2) { Write-Host 'Usage: ikshvaku clone <src> <dst>'; return }
+            $srcPath = Join-Path $global:IkshvakuEnvDir $rest[0]
+            $dstPath = Join-Path $global:IkshvakuEnvDir $rest[1]
+            if (-not (Test-Path $srcPath)) { Write-Host "Env not found: $($rest[0])" -ForegroundColor Red; return }
+            if (Test-Path $dstPath) { Write-Host "Environment '$($rest[1])' already exists" -ForegroundColor Red; return }
+            if (-not (Install-IkshvakuUv)) { return }
+            $srcPy = Get-IkshvakuEnvPython $srcPath
+            if (-not $srcPy) { Write-Host "Env '$($rest[0])' is missing its python" -ForegroundColor Red; return }
+            & uv venv --seed --python $srcPy $dstPath
+            if ($LASTEXITCODE -ne 0) { return }
+            Set-IkshvakuPipShim $dstPath
+            Touch-IkshvakuUsage $rest[1]
+            $tmpReqs = Join-Path ([IO.Path]::GetTempPath()) ("ikshvaku-clone-" + [guid]::NewGuid().ToString('N').Substring(0, 8) + ".txt")
+            & uv pip freeze --python $srcPath > $tmpReqs 2>$null
+            if ((Get-Item $tmpReqs -ErrorAction SilentlyContinue).Length -gt 0) {
+                & uv pip install --python (Get-IkshvakuEnvPython $dstPath) -r $tmpReqs
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Host "⚠️  package install failed — '$($rest[1])' created but incomplete" -ForegroundColor Yellow
+                }
+            }
+            Remove-Item -LiteralPath $tmpReqs -Force -ErrorAction SilentlyContinue
+            Write-Host "Cloned '$($rest[0])' -> '$($rest[1])'" -ForegroundColor Green
+        }
+
+        'cleanup' {
+            $apply = $false
+            $doCache = $false
+            $days = Get-IkshvakuConfig 'cleanup_days'
+            if (-not $days) { $days = 90 }
+            foreach ($a in $rest) {
+                if ($a -eq '--apply') { $apply = $true }
+                elseif ($a -eq '--cache') { $doCache = $true }
+                elseif ($a -like '--days=*') { $days = $a.Substring(7) }
+                elseif ($a -eq '--days') { $pendingDays = $true }
+                elseif ($pendingDays) { $days = $a; $pendingDays = $false }
+                else { Write-Host "Usage: ikshvaku cleanup [--days N] [--apply] [--cache]"; return }
+            }
+            Write-Host "ikshvaku cleanup — stale = unused for $days days (linked projects and the active env are always kept)"
+            Write-Host ''
+            $now = [DateTimeOffset]::Now.ToUnixTimeSeconds()
+            $cutoff = $now - ([int]$days * 86400)
+            $total = 0
+            $stale = 0
+            foreach ($e in @(Get-ChildItem -LiteralPath $global:IkshvakuEnvDir -Directory -ErrorAction SilentlyContinue)) {
+                $total++
+                if (Test-IkshvakuRegistryEnvLinked $e.Name) {
+                    Write-Output ("  keep      {0,-18} linked to a project" -f $e.Name)
+                    continue
+                }
+                if ($e.Name -eq $env:IKSHVAKU_ACTIVE) {
+                    Write-Output ("  keep      {0,-18} currently active" -f $e.Name)
+                    continue
+                }
+                $uf = Join-Path (Join-Path $global:IkshvakuHome 'state') (Join-Path 'usage' $e.Name)
+                $lastEpoch = $null
+                $stamp = 'never'
+                if (Test-Path $uf) {
+                    $line = Get-Content -LiteralPath $uf -ErrorAction SilentlyContinue | Select-Object -First 1
+                    $i = $line.IndexOf(' ')
+                    if ($i -gt 0) {
+                        $lastEpoch = $line.Substring(0, $i)
+                        $stamp = $line.Substring($i + 1)
+                    }
+                }
+                if (-not $lastEpoch) {
+                    Write-Output ("  skip      {0,-18} no usage data (created before v1.2)" -f $e.Name)
+                } elseif ([long]$lastEpoch -le $cutoff) {
+                    $stale++
+                    if ($apply) {
+                        Remove-Item -LiteralPath $e.FullName -Recurse -Force
+                        Remove-Item -LiteralPath $uf -Force -ErrorAction SilentlyContinue
+                        Write-Output ("  DELETE    {0,-18} last used {1}" -f $e.Name, $stamp)
+                    } else {
+                        Write-Output ("  stale     {0,-18} last used {1}" -f $e.Name, $stamp)
+                    }
+                } else {
+                    Write-Output ("  keep      {0,-18} last used {1}" -f $e.Name, $stamp)
+                }
+            }
+            Write-Output ''
+            if ($stale -eq 0) {
+                Write-Output "Nothing to clean ($total environment(s) checked)."
+            } elseif ($apply) {
+                Write-Output "Deleted $stale environment(s)."
+            } else {
+                Write-Output "Dry run: $stale environment(s) would be deleted. Re-run with --apply."
+            }
+            if ($doCache) {
+                if (Get-Command uv -ErrorAction SilentlyContinue) {
+                    & uv cache prune
+                } else {
+                    Write-Host '⚠️  uv not found — cannot prune the cache' -ForegroundColor Yellow
+                }
+            }
+        }
+
+        'config' {
+            if (-not $rest[0]) {
+                $cfg = Join-Path $global:IkshvakuHome 'config'
+                if (Test-Path $cfg) {
+                    Write-Output '# ~/.ikshvaku/config'
+                    Write-Output (Get-Content -LiteralPath $cfg | Out-String).TrimEnd()
+                } else {
+                    Write-Output 'No configuration set.'
+                }
+                Write-Output 'Available keys: python_default, cleanup_days'
+                return
+            }
+            if ($rest.Count -lt 2) {
+                $v = Get-IkshvakuConfig $rest[0]
+                if ($v) { Write-Output "$($rest[0])=$v" } else { Write-Output "$($rest[0]) is not set" }
+                return
+            }
+            Set-IkshvakuConfig $rest[0] $rest[1]
+            Write-Output "Saved: $($rest[0])=$($rest[1])"
         }
 
         'status' {
@@ -521,16 +779,21 @@ function ikshvaku {
             Write-Host "ikshvaku $global:IkshvakuVersion — Python environments powered by uv"
             Write-Host ''
             Write-Host 'Commands:'
-            Write-Host '  ikshvaku list'
+            Write-Host '  ikshvaku list [--size]'
             Write-Host '  ikshvaku status'
             Write-Host '  ikshvaku doctor'
             Write-Host '  ikshvaku create <env> [python-version]'
-            Write-Host '  ikshvaku init [env] [python-version]   link this directory to an env'
+            Write-Host '  ikshvaku init [env] [python-version]   link this directory to an env (+ requirements.txt)'
             Write-Host '  ikshvaku link <env> / unlink'
             Write-Host '  ikshvaku links'
             Write-Host '  ikshvaku activate [env]                no arg = this project env'
             Write-Host '  ikshvaku deactivate'
             Write-Host '  ikshvaku install <env> <pkg...>        or: ikshvaku install <pkg...> (active env)'
+            Write-Host '  ikshvaku run <env> <cmd...>            run a command inside an env'
+            Write-Host '  ikshvaku export <env>                  print installed packages (> requirements.txt)'
+            Write-Host '  ikshvaku clone <src> <dst>             duplicate an environment'
+            Write-Host '  ikshvaku cleanup [--days N] [--apply] [--cache]'
+            Write-Host '  ikshvaku config [key [value]]          python_default, cleanup_days'
             Write-Host '  ikshvaku auto on|off                   switch envs automatically on cd'
             Write-Host '  ikshvaku remove <env>'
             Write-Host '  ikshvaku --version'
@@ -544,7 +807,7 @@ function ikshvaku {
 # Tab completion for commands and environment names
 Register-ArgumentCompleter -CommandName ikshvaku -ScriptBlock {
     param($wordToComplete, $commandAst, $cursorPosition)
-    $commands = @('list', 'create', 'activate', 'deactivate', 'install', 'remove', 'init', 'link', 'unlink', 'links', 'status', 'doctor', 'auto')
+    $commands = @('list', 'create', 'activate', 'deactivate', 'install', 'remove', 'init', 'link', 'unlink', 'links', 'status', 'doctor', 'auto', 'run', 'export', 'clone', 'cleanup', 'config')
     $elems = @($commandAst.CommandElements)
     if ($elems.Count -le 2) {
         $commands | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {

@@ -35,6 +35,8 @@ Most Python environment tools are either too heavy (Conda), too complex
 | 🔗 **Project-aware** | `ikshvaku init` links a directory to an env; bare `activate` works from any subdirectory |
 | 🤖 **Auto-pilot (opt-in)** | `auto on` switches environments as you `cd` |
 | 🩺 **Observable** | `status` and `doctor` show state and diagnose problems |
+| 🧹 **Self-cleaning** | `cleanup` finds and removes stale environments; `list --size` shows what disk each env costs |
+| ⌨️ **Scriptable** | `run`, `export`, `clone` — use environments from scripts and CI without touching your shell |
 | 📦 **Batteries included** | Every env ships with pip preinstalled and Python versions on demand: `ikshvaku create app 3.12` |
 
 No background services. No magic. No lock-in.
@@ -124,18 +126,18 @@ $ ikshvaku activate        # no argument: finds the project's env
 
 ## 📖 Commands
 
-| Command | What it does |
-|---|---|
-| `ikshvaku init [env] [python-version]` | Link the current directory to an environment (creates it if needed) and activate it |
+| `ikshvaku init [env] [python-version]` | Link the current directory to an environment (creates it if needed, installs `requirements.txt` if present) and activate it |
 | `ikshvaku link <env>` / `unlink` | Attach / detach this directory to an environment |
 | `ikshvaku links` | Show every project → environment link |
 | `ikshvaku activate [env]` | Activate — with no argument, uses this project's linked env (even from subdirectories) |
 | `ikshvaku auto on\|off` | Opt-in: switch environments automatically as you `cd` |
 | `ikshvaku create <env> [python-version]` | Create an environment (pip included; pin a Python version and uv fetches it) |
-| `ikshvaku deactivate` | Deactivate the active environment |
-| `ikshvaku install <env> <pkg...>` | Install packages into any environment — runs an isolated *activate → install → deactivate* cycle |
-| `ikshvaku install <pkg...>` | Same, targeting the environment you have active |
-| `ikshvaku list` | List environments |
+| `ikshvaku run <env> <cmd...>` | Run a command inside an environment without activating — exit codes propagate |
+| `ikshvaku export <env>` | Print installed packages (redirect to `requirements.txt`) |
+| `ikshvaku clone <src> <dst>` | Duplicate an environment, packages and all |
+| `ikshvaku list` / `list --size` | List environments; `--size` adds disk usage and last-used |
+| `ikshvaku cleanup [--days N] [--apply] [--cache]` | Report (or delete) environments unused for N days; `--cache` prunes uv's cache |
+| `ikshvaku config [key [value]]` | Set `python_default`, `cleanup_days` |
 | `ikshvaku status` | Active env, project link, Python version, package count, disk size |
 | `ikshvaku doctor` | Health check: installation, uv, shell integration, broken links, cache size |
 | `ikshvaku remove <env>` | Delete an environment |
@@ -186,6 +188,42 @@ ikshvaku init        # creates (if needed), links, activates
 - Links live in plain text at `~/.ikshvaku/registry`
 - `ikshvaku doctor` reports broken links, duplicated shell integrations and
   uv cache size; `ikshvaku status` shows where you are at a glance
+
+---
+
+## 🧹 Hygiene & scripting
+
+Environments track when they were last used, so Ikshvaku can tell you what
+your disk is doing — and clean it up safely:
+
+```console
+$ ikshvaku list --size
+ENV                   SIZE  LAST USED
+webapp                12 MB 2026-10-19
+old-experiment       6.6 MB 2026-07-02
+
+$ ikshvaku cleanup
+ikshvaku cleanup — stale = unused for 90 days (linked projects and the active env are always kept)
+  keep      webapp             linked to a project
+  stale     old-experiment     last used 2026-07-02
+Dry run: 1 environment(s) would be deleted. Re-run with --apply.
+
+$ ikshvaku cleanup --apply --cache   # delete stale + prune uv's cache
+```
+
+Linked projects and the active environment are **always** kept.
+
+Scripting and CI never need to touch your shell:
+
+```bash
+ikshvaku run webapp python manage.py test   # run inside an env, exit codes propagate
+ikshvaku export webapp > requirements.txt   # freeze packages
+ikshvaku clone webapp webapp-py313          # duplicate an environment
+```
+
+`ikshvaku init` in a project containing a `requirements.txt` creates the env,
+installs its dependencies, links, and activates — one command from clone to
+working. Defaults live in `ikshvaku config` (`python_default`, `cleanup_days`).
 
 ---
 
@@ -304,11 +342,11 @@ No — uv is a shared tool other projects may use. Remove it with
 
 ## 🗺 Roadmap
 
+- [x] Non-interactive / scripting mode (`run`, `export`, `clone`)
+- [x] Disk-space tooling (`list --size`, `cleanup`, cache pruning)
 - [ ] Fish support
 - [ ] Documentation site
-- [ ] Non-interactive / scripting mode
 - [ ] `ikshvaku upgrade` — self-update
-- [ ] Further disk-space optimization
 
 ---
 

@@ -73,6 +73,25 @@ jobs:
           ikshvaku doctor > /dev/null || { echo "❌ doctor failed"; exit 1; }
           ikshvaku unlink > /dev/null
 
+      - name: Tier 2 (config / run / export / clone / list --size / cleanup)
+        run: |
+          source ~/.ikshvaku/ikshvaku.sh
+          cd "$RUNNER_TEMP/myproj"
+          ikshvaku link myproj > /dev/null
+          ikshvaku config python_default 3.12
+          [ "$(ikshvaku config python_default)" = "python_default=3.12" ] || { echo "❌ config"; exit 1; }
+          ikshvaku create cfgtest > /dev/null 2>&1
+          ikshvaku install cfgtest idna > /dev/null 2>&1
+          ikshvaku export cfgtest | grep "idna" > /dev/null || { echo "❌ export"; exit 1; }
+          ikshvaku run cfgtest python -c "import idna; print('run-ok')" | grep "run-ok" > /dev/null || { echo "❌ run"; exit 1; }
+          ikshvaku clone cfgtest clonetest > /dev/null 2>&1
+          ikshvaku run clonetest python -c "import idna" > /dev/null 2>&1 || { echo "❌ clone"; exit 1; }
+          ikshvaku list --size | grep "clonetest" > /dev/null || { echo "❌ list --size"; exit 1; }
+          ikshvaku cleanup --days 0 | grep "Dry run" > /dev/null || { echo "❌ cleanup dry-run"; exit 1; }
+          ikshvaku cleanup --days 0 --apply | grep "Deleted" > /dev/null || { echo "❌ cleanup apply"; exit 1; }
+          [ ! -d "$HOME/.Python-Env/clonetest" ] || { echo "❌ cleanup did not delete unlinked"; exit 1; }
+          [ -d "$HOME/.Python-Env/myproj" ] || { echo "❌ cleanup deleted a linked env"; exit 1; }
+
       - name: Install zsh (Ubuntu runners don't ship it)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y zsh
@@ -161,6 +180,28 @@ jobs:
           if ($d -notmatch 'All checks passed') { throw "❌ doctor failed: $d" }
           ikshvaku unlink | Out-Null
 
+      - name: Tier 2 (config / run / export / clone / cleanup)
+        run: |
+          $env:Path = "$env:USERPROFILE\.local\bin;$env:Path"
+          . "$env:USERPROFILE\.ikshvaku\ikshvaku.ps1"
+          Set-Location (Join-Path $env:RUNNER_TEMP 'psproj')
+          ikshvaku link psproj | Out-Null
+          ikshvaku config python_default 3.12
+          if (((ikshvaku config python_default | Out-String).Trim()) -ne 'python_default=3.12') { throw '❌ config' }
+          ikshvaku create cfgtest | Out-Null
+          ikshvaku install cfgtest idna | Out-Null
+          if (((ikshvaku export cfgtest | Out-String)) -notmatch 'idna') { throw '❌ export' }
+          ikshvaku run cfgtest python -c "import idna; print('run-ok')" | Select-String 'run-ok'
+          if ($LASTEXITCODE -ne 0) { throw '❌ run' }
+          ikshvaku clone cfgtest clonetest | Out-Null
+          ikshvaku run clonetest python -c "import idna"
+          if ($LASTEXITCODE -ne 0) { throw '❌ clone' }
+          if (((ikshvaku list --size | Out-String)) -notmatch 'clonetest') { throw '❌ list --size' }
+          ikshvaku cleanup --days 0 | Out-String -Stream | Select-String 'Dry run'
+          ikshvaku cleanup --days 0 --apply | Out-String -Stream | Select-String 'Deleted'
+          if (Test-Path (Join-Path $env:USERPROFILE '.Python-Env\clonetest')) { throw '❌ cleanup did not delete unlinked' }
+          if (-not (Test-Path (Join-Path $env:USERPROFILE '.Python-Env\psproj'))) { throw '❌ cleanup deleted linked env' }
+
       - name: Smoke test (PowerShell 7)
         shell: pwsh
         run: |
@@ -195,6 +236,28 @@ jobs:
           $d = (ikshvaku doctor | Out-String)
           if ($d -notmatch 'All checks passed') { throw "❌ doctor failed: $d" }
           ikshvaku unlink | Out-Null
+
+      - name: Tier 2 (config / run / export / clone / cleanup)
+        run: |
+          $env:Path = "$env:USERPROFILE\.local\bin;$env:Path"
+          . "$env:USERPROFILE\.ikshvaku\ikshvaku.ps1"
+          Set-Location (Join-Path $env:RUNNER_TEMP 'psproj')
+          ikshvaku link psproj | Out-Null
+          ikshvaku config python_default 3.12
+          if (((ikshvaku config python_default | Out-String).Trim()) -ne 'python_default=3.12') { throw '❌ config' }
+          ikshvaku create cfgtest | Out-Null
+          ikshvaku install cfgtest idna | Out-Null
+          if (((ikshvaku export cfgtest | Out-String)) -notmatch 'idna') { throw '❌ export' }
+          ikshvaku run cfgtest python -c "import idna; print('run-ok')" | Select-String 'run-ok'
+          if ($LASTEXITCODE -ne 0) { throw '❌ run' }
+          ikshvaku clone cfgtest clonetest | Out-Null
+          ikshvaku run clonetest python -c "import idna"
+          if ($LASTEXITCODE -ne 0) { throw '❌ clone' }
+          if (((ikshvaku list --size | Out-String)) -notmatch 'clonetest') { throw '❌ list --size' }
+          ikshvaku cleanup --days 0 | Out-String -Stream | Select-String 'Dry run'
+          ikshvaku cleanup --days 0 --apply | Out-String -Stream | Select-String 'Deleted'
+          if (Test-Path (Join-Path $env:USERPROFILE '.Python-Env\clonetest')) { throw '❌ cleanup did not delete unlinked' }
+          if (-not (Test-Path (Join-Path $env:USERPROFILE '.Python-Env\psproj'))) { throw '❌ cleanup deleted linked env' }
 
       - name: Smoke test (cmd shim)
         shell: cmd
