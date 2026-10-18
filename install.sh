@@ -33,10 +33,14 @@ if [ -z "$PAYLOAD_DIR" ]; then
   trap 'rm -rf "$PAYLOAD_DIR"' EXIT
   printf ":: Remote install — downloading Ikshvaku files...\n"
   ikshvaku_fetch() {
+    # $1 = payload file name. Payloads live under src/ in current releases;
+    # tags from before the reorganization had them flat at the root — try both.
     if command -v curl >/dev/null 2>&1; then
-      curl -fsSL "$RAW_BASE/src/$1" -o "$PAYLOAD_DIR/$1"
+      curl -fsSL "$RAW_BASE/src/$1" -o "$PAYLOAD_DIR/$1" \
+        || curl -fsSL "$RAW_BASE/$1" -o "$PAYLOAD_DIR/$1"
     elif command -v wget >/dev/null 2>&1; then
-      wget -qO "$PAYLOAD_DIR/$1" "$RAW_BASE/src/$1"
+      wget -qO "$PAYLOAD_DIR/$1" "$RAW_BASE/src/$1" \
+        || wget -qO "$PAYLOAD_DIR/$1" "$RAW_BASE/$1"
     else
       printf "\033[0;31m❌ curl or wget is required to install Ikshvaku\033[0m\n"
       exit 1

@@ -46,10 +46,16 @@ if (-not $payloadDir) {
     Write-Host ':: Remote install — downloading Ikshvaku files...'
     foreach ($f in @('ikshvaku.ps1', 'ikshvaku.cmd', 'uninstall.ps1')) {
         try {
+            # payloads live under src/ in current releases; older tags had
+            # them flat at the repository root — try both
             Invoke-WebRequest -Uri "$rawBase/src/$f" -OutFile (Join-Path $payloadDir $f) -UseBasicParsing
         } catch {
-            Write-Host "❌ download failed ($f): $_" -ForegroundColor Red
-            exit 1
+            try {
+                Invoke-WebRequest -Uri "$rawBase/$f" -OutFile (Join-Path $payloadDir $f) -UseBasicParsing
+            } catch {
+                Write-Host "❌ download failed ($f): $_" -ForegroundColor Red
+                exit 1
+            }
         }
     }
 }
