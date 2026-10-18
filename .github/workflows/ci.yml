@@ -57,6 +57,10 @@ jobs:
           ikshvaku remove cienv
           ikshvaku list
 
+      - name: Install zsh (Ubuntu runners don't ship it)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y zsh
+
       - name: Smoke test (zsh)
         if: runner.os != 'Windows'
         shell: zsh {0}
@@ -84,7 +88,7 @@ jobs:
             $errs = $null
             [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $f).Path, [ref]$null, [ref]$errs) | Out-Null
             if ($errs.Count -gt 0) { $errs | ForEach-Object { Write-Host $_.Message }; exit 1 }
-            Write-Host "$f: parse OK"
+            Write-Host "${f}: parse OK"
           }
 
       - name: Install (PowerShell 5.1, downloads uv if missing)

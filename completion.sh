@@ -1,4 +1,5 @@
 # ~/.ikshvaku/completion.sh
+# shellcheck shell=bash
 
 _ikshvaku_complete() {
     local cur prev cmds envs
@@ -11,12 +12,14 @@ _ikshvaku_complete() {
     envs=$(ls "$HOME/.Python-Env" 2>/dev/null)
 
     if [[ $COMP_CWORD -eq 1 ]]; then
+        # shellcheck disable=SC2207  # bash 3.2 (macOS) has no mapfile; splitting is intended
         COMPREPLY=( $(compgen -W "$cmds" -- "$cur") )
         return
     fi
 
     case "$prev" in
         activate|remove|install)
+            # shellcheck disable=SC2207  # bash 3.2 (macOS) has no mapfile; splitting is intended
             COMPREPLY=( $(compgen -W "$envs" -- "$cur") )
             ;;
     esac

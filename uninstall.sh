@@ -6,7 +6,6 @@ BIN_DIR="$HOME/.local/bin"
 SELF_PATH="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 
 GREEN='\033[0;32m'
-RED='\033[0;31m'
 RESET='\033[0m'
 
 printf ":: Uninstalling Ikshvaku...\n"

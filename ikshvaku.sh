@@ -1,4 +1,5 @@
 # ~/.ikshvaku/ikshvaku.sh
+# shellcheck shell=bash
 
 IKSHVAKU_UV_INSTALLER="https://astral.sh/uv/install.sh"
 
@@ -107,6 +108,7 @@ ikshvaku() {
             [ -z "$2" ] && echo "Usage: ikshvaku activate <env>" && return 1
             local env_act
             env_act=$(ikshvaku_activate_script "$ENV_DIR/$2") || { echo "Env not found"; return 1; }
+            # shellcheck disable=SC1090  # venv's activate script, path is dynamic by design
             source "$env_act"
             export IKSHVAKU_ACTIVE="$2"
             ;;
@@ -156,6 +158,7 @@ ikshvaku() {
             # cycle (a subshell), so the current shell — and any env you have
             # active in it — is never disturbed.
             (
+                # shellcheck disable=SC1090  # venv's activate script, path is dynamic by design
                 source "$env_act"
                 export IKSHVAKU_ACTIVE="$env_name"
                 uv pip install --python "$env_bin" "$@"
@@ -165,7 +168,7 @@ ikshvaku() {
         remove)
             [ -z "$2" ] && echo "Usage: ikshvaku remove <env>" && return 1
             [ ! -d "$ENV_DIR/$2" ] && echo "Env not found" && return 1
-            rm -rf "$ENV_DIR/$2"
+            rm -rf "${ENV_DIR:?}/$2"
             echo "Environment '$2' removed"
             ;;
 
