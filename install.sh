@@ -6,6 +6,18 @@ if [[ $EUID -eq 0 ]]; then
   exit 1
 fi
 
+# Optional version pin: `curl .../install.sh | bash -s -- v1.2.0`
+# installs the payload from that tag instead of main.
+# Must run BEFORE the payload resolution below.
+IK_TAG=""
+if [ -n "$1" ]; then
+  if ! echo "$1" | grep -Eq '^v?[0-9]+\.[0-9]+\.[0-9]+$'; then
+    printf "\033[0;31m❌ invalid version '%s' — expected e.g. 1.2.0 or v1.2.0\033[0m\n" "$1"
+    exit 1
+  fi
+  IK_TAG="v$(printf '%s' "$1" | sed 's/^v//')"
+fi
+
 # Where this script lives — and where its payload files are.
 # Payloads live in src/ in this repository. When piped (curl ... | bash) there
 # is no checkout on disk — $0 is the shell's own name, so the current
@@ -68,17 +80,6 @@ BIN_DIR="$HOME/.local/bin"
 ENV_DIR="$HOME/.Python-Env"
 UV_INSTALLER="https://astral.sh/uv/install.sh"
 IKSHVAKU_VERSION="1.3.0"
-
-# Optional version pin: `curl .../install.sh | bash -s -- v1.2.0`
-# installs the payload from that tag instead of main.
-IK_TAG=""
-if [ -n "$1" ]; then
-  if ! echo "$1" | grep -Eq '^v?[0-9]+\.[0-9]+\.[0-9]+$'; then
-    printf "\033[0;31m❌ invalid version '%s' — expected e.g. 1.2.0 or v1.2.0\033[0m\n" "$1"
-    exit 1
-  fi
-  IK_TAG="v$(printf '%s' "$1" | sed 's/^v//')"
-fi
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
