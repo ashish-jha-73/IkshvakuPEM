@@ -38,6 +38,7 @@ Most Python environment tools are either too heavy (Conda), too complex
 | 🧹 **Self-cleaning** | `cleanup` finds and removes stale environments; `list --size` shows what disk each env costs |
 | ⌨️ **Scriptable** | `run`, `export`, `clone` — use environments from scripts and CI without touching your shell |
 | 📦 **Batteries included** | Every env ships with pip preinstalled and Python versions on demand: `ikshvaku create app 3.12` |
+| ⬆️ **Self-updating** | `ikshvaku upgrade` moves you to the latest release |
 
 No background services. No magic. No lock-in.
 
@@ -64,6 +65,49 @@ powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/ash
 The installer detects your OS and shell, downloads `uv` if missing (internet
 needed once), and wires up your shell automatically. Restart your shell
 afterwards — or `source ~/.bashrc`, `source ~/.zshrc`, `. $PROFILE`.
+
+### Pin a version
+
+By default the one-liner installs the latest `main`. To install a specific
+release:
+
+```bash
+curl -LsSf https://raw.githubusercontent.com/ashish-jha-73/IkshvakuPEM/main/install.sh | bash -s -- v1.2.0
+```
+
+```powershell
+powershell -c "$env:IKSHVAKU_VERSION = 'v1.2.0'; irm https://raw.githubusercontent.com/ashish-jha-73/IkshvakuPEM/main/install.ps1 | iex"
+```
+
+### Upgrade
+
+Already installed? One command:
+
+```bash
+ikshvaku upgrade
+```
+
+(Homebrew users: `brew upgrade ikshvaku`.)
+
+### Homebrew (macOS / Linux)
+
+```bash
+brew tap ashish-jha-73/ikshvaku https://github.com/ashish-jha-73/homebrew-ikshvaku
+brew install ikshvaku
+```
+
+### Use in CI (GitHub Action)
+
+The [`ikshvaku-action`](https://github.com/ashish-jha-73/ikshvaku-action) sets
+up an environment in your workflow and exposes its Python to later steps:
+
+```yaml
+- uses: ashish-jha-73/ikshvaku-action@v1
+  with:
+    python-version: '3.12'
+
+- run: python my_script.py        # runs inside the environment
+```
 
 ### Manual install (from a clone)
 
@@ -344,9 +388,10 @@ No — uv is a shared tool other projects may use. Remove it with
 
 - [x] Non-interactive / scripting mode (`run`, `export`, `clone`)
 - [x] Disk-space tooling (`list --size`, `cleanup`, cache pruning)
+- [x] `ikshvaku upgrade` — self-update
+- [x] Homebrew tap + GitHub Action
 - [ ] Fish support
 - [ ] Documentation site
-- [ ] `ikshvaku upgrade` — self-update
 
 ---
 

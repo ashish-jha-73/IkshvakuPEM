@@ -2,7 +2,7 @@
 # Dot-sourced (from $PROFILE): defines the ikshvaku function.
 # Run as a script (from the ikshvaku.cmd shim): dispatches ikshvaku directly.
 
-$global:IkshvakuVersion = '1.2.0'
+$global:IkshvakuVersion = '1.3.0'
 $global:IkshvakuEnvDir = Join-Path $env:USERPROFILE '.Python-Env'
 $global:IkshvakuHome = Join-Path $env:USERPROFILE '.ikshvaku'
 $global:IkshvakuUvInstaller = 'https://astral.sh/uv/install.ps1'
@@ -757,6 +757,17 @@ function ikshvaku {
             Write-Host "Environment '$($rest[0])' removed" -ForegroundColor Green
         }
 
+        'upgrade' {
+            Write-Host "ikshvaku $global:IkshvakuVersion — upgrading to the latest release..."
+            try {
+                Invoke-RestMethod -Uri 'https://raw.githubusercontent.com/ashish-jha-73/IkshvakuPEM/main/install.ps1' | Invoke-Expression
+            } catch {
+                Write-Host "⚠️  upgrade failed — run the install command manually" -ForegroundColor Red
+                return
+            }
+            Write-Host 'Restart your shell to load the new version.'
+        }
+
         '--version' {
             Write-Output "ikshvaku $global:IkshvakuVersion"
         }
@@ -795,6 +806,7 @@ function ikshvaku {
             Write-Host '  ikshvaku cleanup [--days N] [--apply] [--cache]'
             Write-Host '  ikshvaku config [key [value]]          python_default, cleanup_days'
             Write-Host '  ikshvaku auto on|off                   switch envs automatically on cd'
+            Write-Host '  ikshvaku upgrade                       update to the latest release'
             Write-Host '  ikshvaku remove <env>'
             Write-Host '  ikshvaku --version'
             Write-Host ''
@@ -807,7 +819,7 @@ function ikshvaku {
 # Tab completion for commands and environment names
 Register-ArgumentCompleter -CommandName ikshvaku -ScriptBlock {
     param($wordToComplete, $commandAst, $cursorPosition)
-    $commands = @('list', 'create', 'activate', 'deactivate', 'install', 'remove', 'init', 'link', 'unlink', 'links', 'status', 'doctor', 'auto', 'run', 'export', 'clone', 'cleanup', 'config')
+    $commands = @('list', 'create', 'activate', 'deactivate', 'install', 'remove', 'init', 'link', 'unlink', 'links', 'status', 'doctor', 'auto', 'run', 'export', 'clone', 'cleanup', 'config', 'upgrade')
     $elems = @($commandAst.CommandElements)
     if ($elems.Count -le 2) {
         $commands | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {

@@ -7,7 +7,7 @@ _ikshvaku_complete() {
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    cmds="list create activate deactivate install remove init link unlink links status doctor auto run export clone cleanup config"
+    cmds="list create activate deactivate install remove init link unlink links status doctor auto run export clone cleanup config upgrade"
 
     envs=$(ls "$HOME/.Python-Env" 2>/dev/null)
 

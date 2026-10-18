@@ -1,7 +1,7 @@
 # ~/.ikshvaku/ikshvaku.sh
 # shellcheck shell=bash
 
-IKSHVAKU_VERSION="1.2.0"
+IKSHVAKU_VERSION="1.3.0"
 IKSHVAKU_UV_INSTALLER="https://astral.sh/uv/install.sh"
 IKSHVAKU_ENV_DIR="${IKSHVAKU_ENV_DIR:-$HOME/.Python-Env}"
 IKSHVAKU_HOME="${IKSHVAKU_HOME:-$HOME/.ikshvaku}"
@@ -614,8 +614,10 @@ ikshvaku() {
             echo ""
             if [ -f "$HOME/.ikshvaku/ikshvaku.sh" ]; then
                 echo "✅ installation: ~/.ikshvaku present"
+            elif command -v brew >/dev/null 2>&1 && [ -f "$(brew --prefix 2>/dev/null)/share/ikshvaku/ikshvaku.sh" ]; then
+                echo "✅ installation: Homebrew ($(brew --prefix 2>/dev/null)/share/ikshvaku)"
             else
-                echo "❌ installation: ~/.ikshvaku not found — run the installer"
+                echo "❌ installation: not found — run the installer"
                 ok=0
             fi
             if command -v uv >/dev/null 2>&1; then
@@ -707,6 +709,22 @@ ikshvaku() {
             echo "Environment '$2' removed"
             ;;
 
+        upgrade)
+            echo "ikshvaku $IKSHVAKU_VERSION — upgrading to the latest release..."
+            local ik_url="${IKSHVAKU_REPO_RAW:-https://raw.githubusercontent.com/ashish-jha-73/IkshvakuPEM/main}/install.sh"
+            if command -v curl >/dev/null 2>&1; then
+                curl -fsSL "$ik_url" | bash || { echo "⚠️  upgrade failed — run the install command manually"; return 1; }
+            elif command -v wget >/dev/null 2>&1; then
+                wget -qO- "$ik_url" | bash || { echo "⚠️  upgrade failed — run the install command manually"; return 1; }
+            else
+                echo "❌ curl or wget is required to upgrade"
+                return 1
+            fi
+            echo ""
+            echo "If you installed via Homebrew, run: brew upgrade ikshvaku"
+            echo "Restart your shell to load the new version."
+            ;;
+
         --version|version|-V)
             echo "ikshvaku $IKSHVAKU_VERSION"
             ;;
@@ -731,6 +749,7 @@ ikshvaku() {
             echo "  ikshvaku cleanup [--days N] [--apply] [--cache]"
             echo "  ikshvaku config [key [value]]          python_default, cleanup_days"
             echo "  ikshvaku auto on|off                   switch envs automatically on cd"
+            echo "  ikshvaku upgrade                       update to the latest release"
             echo "  ikshvaku remove <env>"
             echo "  ikshvaku --version"
             echo ""

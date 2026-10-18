@@ -8,9 +8,13 @@ fi
 
 # Where this script lives — and where its payload files are.
 # Payloads live in src/ in this repository. When piped (curl ... | bash) there
-# is no checkout on disk: fetch them from GitHub instead.
+# is no checkout on disk — $0 is the shell's own name, so the current
+# directory is never used as a payload source; fetch from GitHub instead.
 # IKSHVAKU_REPO_RAW overrides the source (useful for forks and tests).
 SCRIPT_DIR="$(dirname "$0")"
+case "$(basename "$0")" in
+    bash|sh|dash) SCRIPT_DIR="" ;;   # piped execution (curl ... | bash) — no local checkout
+esac
 PAYLOAD_DIR=""
 if [ -f "$SCRIPT_DIR/src/ikshvaku.sh" ]; then
   PAYLOAD_DIR="$SCRIPT_DIR/src"        # repository checkout (this layout)
@@ -18,7 +22,13 @@ elif [ -f "$SCRIPT_DIR/ikshvaku.sh" ]; then
   PAYLOAD_DIR="$SCRIPT_DIR"            # legacy flat checkout
 fi
 if [ -z "$PAYLOAD_DIR" ]; then
-  RAW_BASE="${IKSHVAKU_REPO_RAW:-https://raw.githubusercontent.com/ashish-jha-73/IkshvakuPEM/main}"
+  if [ -n "${IKSHVAKU_REPO_RAW:-}" ]; then
+    RAW_BASE="$IKSHVAKU_REPO_RAW"
+  elif [ -n "$IK_TAG" ]; then
+    RAW_BASE="https://raw.githubusercontent.com/ashish-jha-73/IkshvakuPEM/$IK_TAG"
+  else
+    RAW_BASE="https://raw.githubusercontent.com/ashish-jha-73/IkshvakuPEM/main"
+  fi
   PAYLOAD_DIR="$(mktemp -d)"
   trap 'rm -rf "$PAYLOAD_DIR"' EXIT
   printf ":: Remote install — downloading Ikshvaku files...\n"
@@ -53,7 +63,18 @@ INSTALL_DIR="$HOME/.ikshvaku"
 BIN_DIR="$HOME/.local/bin"
 ENV_DIR="$HOME/.Python-Env"
 UV_INSTALLER="https://astral.sh/uv/install.sh"
-IKSHVAKU_VERSION="1.2.0"
+IKSHVAKU_VERSION="1.3.0"
+
+# Optional version pin: `curl .../install.sh | bash -s -- v1.2.0`
+# installs the payload from that tag instead of main.
+IK_TAG=""
+if [ -n "$1" ]; then
+  if ! echo "$1" | grep -Eq '^v?[0-9]+\.[0-9]+\.[0-9]+$'; then
+    printf "\033[0;31m❌ invalid version '%s' — expected e.g. 1.2.0 or v1.2.0\033[0m\n" "$1"
+    exit 1
+  fi
+  IK_TAG="v$(printf '%s' "$1" | sed 's/^v//')"
+fi
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -61,6 +82,9 @@ YELLOW='\033[0;33m'
 RESET='\033[0m'
 
 printf ":: Installing Ikshvaku %s...\n" "$IKSHVAKU_VERSION"
+if [ -n "$IK_TAG" ]; then
+  printf ":: Version pinned — installing payload from %s\n" "$IK_TAG"
+fi
 printf ":: Detected OS: %s | Shell: %s\n" "$OS_NAME" "$SHELL_NAME"
 
 # uv lives in ~/.local/bin (or ~/.cargo/bin on older setups) — make sure it is reachable

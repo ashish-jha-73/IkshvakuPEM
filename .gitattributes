@@ -1,0 +1,4 @@
+# Release tarballs (git archive) exclude repository-only content
+.github/ export-ignore
+docs/ export-ignore
+packaging/ export-ignore

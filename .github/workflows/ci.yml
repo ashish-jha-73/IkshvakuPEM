@@ -92,6 +92,19 @@ jobs:
           [ ! -d "$HOME/.Python-Env/clonetest" ] || { echo "❌ cleanup did not delete unlinked"; exit 1; }
           [ -d "$HOME/.Python-Env/myproj" ] || { echo "❌ cleanup deleted a linked env"; exit 1; }
 
+      - name: Version-pinned install + upgrade
+        run: |
+          export HOME=$(mktemp -d)
+          curl -LsSf https://raw.githubusercontent.com/ashish-jha-73/IkshvakuPEM/main/install.sh | bash -s -- v1.2.0 > /dev/null 2>&1
+          source "$HOME/.ikshvaku/ikshvaku.sh"
+          [ "$(ikshvaku --version)" = "ikshvaku 1.2.0" ] || { echo "❌ pinned install"; exit 1; }
+          echo "✅ pinned to 1.2.0"
+          curl -LsSf https://raw.githubusercontent.com/ashish-jha-73/IkshvakuPEM/main/install.sh | bash -s -- notaversion > /dev/null 2>&1 && { echo "❌ invalid version accepted"; exit 1; } || echo "✅ invalid version rejected"
+          ikshvaku upgrade > /dev/null 2>&1
+          source "$HOME/.ikshvaku/ikshvaku.sh"
+          [ "$(ikshvaku --version)" != "ikshvaku 1.2.0" ] || { echo "❌ upgrade did not change version"; exit 1; }
+          echo "✅ upgraded to $(ikshvaku --version)"
+
       - name: Install zsh (Ubuntu runners don't ship it)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y zsh
@@ -202,6 +215,15 @@ jobs:
           if (Test-Path (Join-Path $env:USERPROFILE '.Python-Env\clonetest')) { throw '❌ cleanup did not delete unlinked' }
           if (-not (Test-Path (Join-Path $env:USERPROFILE '.Python-Env\psproj'))) { throw '❌ cleanup deleted linked env' }
 
+      - name: Version-pinned install
+        shell: pwsh
+        run: |
+          $env:IKSHVAKU_VERSION = 'v1.2.0'
+          Invoke-RestMethod -Uri 'https://raw.githubusercontent.com/ashish-jha-73/IkshvakuPEM/main/install.ps1' | Invoke-Expression
+          . "$env:USERPROFILE\.ikshvaku\ikshvaku.ps1"
+          if (((ikshvaku --version | Out-String).Trim()) -ne 'ikshvaku 1.2.0') { throw '❌ pinned install' }
+          Write-Host '✅ pinned to 1.2.0'
+
       - name: Smoke test (PowerShell 7)
         shell: pwsh
         run: |
@@ -258,6 +280,15 @@ jobs:
           ikshvaku cleanup --days 0 --apply | Out-String -Stream | Select-String 'Deleted'
           if (Test-Path (Join-Path $env:USERPROFILE '.Python-Env\clonetest')) { throw '❌ cleanup did not delete unlinked' }
           if (-not (Test-Path (Join-Path $env:USERPROFILE '.Python-Env\psproj'))) { throw '❌ cleanup deleted linked env' }
+
+      - name: Version-pinned install
+        shell: pwsh
+        run: |
+          $env:IKSHVAKU_VERSION = 'v1.2.0'
+          Invoke-RestMethod -Uri 'https://raw.githubusercontent.com/ashish-jha-73/IkshvakuPEM/main/install.ps1' | Invoke-Expression
+          . "$env:USERPROFILE\.ikshvaku\ikshvaku.ps1"
+          if (((ikshvaku --version | Out-String).Trim()) -ne 'ikshvaku 1.2.0') { throw '❌ pinned install' }
+          Write-Host '✅ pinned to 1.2.0'
 
       - name: Smoke test (cmd shim)
         shell: cmd

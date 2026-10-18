@@ -11,7 +11,18 @@ $InstallDir  = Join-Path $env:USERPROFILE '.ikshvaku'
 $BinDir      = Join-Path $env:USERPROFILE '.local\bin'
 $EnvDir      = Join-Path $env:USERPROFILE '.Python-Env'
 $UvInstaller = 'https://astral.sh/uv/install.ps1'
-$IkshvakuVersion = '1.2.0'
+$IkshvakuVersion = '1.3.0'
+
+# Optional version pin: set IKSHVAKU_VERSION before invoking the installer
+# (e.g. $env:IKSHVAKU_VERSION = 'v1.2.0') to install the payload from that tag.
+$IkTag = $env:IKSHVAKU_VERSION
+if ($IkTag) {
+    if ($IkTag -notmatch '^[v]?[0-9]+\.[0-9]+\.[0-9]+$') {
+        Write-Host "❌ invalid IKSHVAKU_VERSION '$IkTag' — expected e.g. 1.2.0 or v1.2.0" -ForegroundColor Red
+        exit 1
+    }
+    $IkTag = 'v' + ($IkTag -replace '^v', '')
+}
 
 # Where this script lives — and where its payload files are.
 # Payloads live in src/ in this repository. When run remotely
@@ -26,7 +37,9 @@ if ($scriptDir -and (Test-Path (Join-Path (Join-Path $scriptDir 'src') 'ikshvaku
     $payloadDir = $scriptDir                          # legacy flat checkout
 }
 if (-not $payloadDir) {
-    $rawBase = if ($env:IKSHVAKU_REPO_RAW) { $env:IKSHVAKU_REPO_RAW } else { 'https://raw.githubusercontent.com/ashish-jha-73/IkshvakuPEM/main' }
+    if ($env:IKSHVAKU_REPO_RAW) { $rawBase = $env:IKSHVAKU_REPO_RAW }
+    elseif ($IkTag) { $rawBase = "https://raw.githubusercontent.com/ashish-jha-73/IkshvakuPEM/$IkTag" }
+    else { $rawBase = 'https://raw.githubusercontent.com/ashish-jha-73/IkshvakuPEM/main' }
     $payloadDir = Join-Path ([IO.Path]::GetTempPath()) ("ikshvaku-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
     New-Item -ItemType Directory -Force -Path $payloadDir | Out-Null
     $fetchedRemotely = $true
@@ -42,6 +55,7 @@ if (-not $payloadDir) {
 }
 
 Write-Host ":: Installing Ikshvaku $IkshvakuVersion..."
+if ($IkTag) { Write-Host ":: Version pinned — installing payload from $IkTag" }
 Write-Host ":: PowerShell $($PSVersionTable.PSVersion) ($($PSVersionTable.PSEdition) Edition)"
 
 # --- uv: powers all environments. Downloaded automatically if missing. ---

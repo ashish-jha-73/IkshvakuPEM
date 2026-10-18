@@ -1,0 +1,22 @@
+# Maintainer: Ashish Kumar <ashish-jha-73@users.noreply.github.com>
+pkgname=ikshvaku
+pkgver=1.2.0
+pkgrel=1
+pkgdesc='Lightweight Python environment manager powered by uv'
+arch=('any')
+url='https://github.com/ashish-jha-73/IkshvakuPEM'
+license=('MIT')
+depends=('bash' 'curl' 'uv')
+optdepends=('wget: alternative downloader for the uv bootstrap')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('REPLACE_WITH_RELEASE_SHA256')
+
+package() {
+  install -Dm644 "$srcdir/$pkgname-$pkgver/src/ikshvaku.sh" \
+    "$pkgdir/usr/share/ikshvaku/ikshvaku.sh"
+  install -Dm644 "$srcdir/$pkgname-$pkgver/src/completion.sh" \
+    "$pkgdir/usr/share/ikshvaku/completion.sh"
+
+  install -Dm644 "$srcdir/$pkgname-$pkgver/LICENSE" \
+    "$pkgdir/usr/share/licenses/ikshvaku/LICENSE"
+}

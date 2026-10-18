@@ -3,6 +3,30 @@
 All notable changes to Ikshvaku are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/); versioning follows [SemVer](https://semver.org/).
 
+## [1.3.0] — 2026-10-19
+
+Distribution release: Homebrew, GitHub Action, self-update, pinned installs.
+
+### Added
+- **`ikshvaku upgrade`** — re-runs the platform installer to move to the
+  latest release (Homebrew users: `brew upgrade ikshvaku`).
+- **Version-pinned installs** — `curl .../install.sh | bash -s -- v1.2.0` or
+  set `IKSHVAKU_VERSION` before the PowerShell one-liner. Tags are validated;
+  payloads come from the tag, not `main`.
+- **Homebrew tap** — [`ashish-jha-73/homebrew-ikshvaku`](https://github.com/ashish-jha-73/homebrew-ikshvaku):
+  `brew tap ashish-jha-73/ikshvaku https://github.com/ashish-jha-73/homebrew-ikshvaku`
+  then `brew install ikshvaku`. `doctor` recognizes Homebrew installs.
+- **`ikshvaku-action`** — [GitHub Action](https://github.com/ashish-jha-73/ikshvaku-action)
+  for CI: installs Ikshvaku, creates and links an environment, and exposes its
+  Python to later steps via `GITHUB_PATH`.
+- **Offline release bundles** — every release ships a tarball
+  (`ikshvaku-<version>.tar.gz`) for air-gapped or pinned installs; repository
+  only directories are excluded from archives via `git export-ignore`.
+- **Packaging starters** — AUR `PKGBUILD`, Scoop notes and packaging guides in
+  `packaging/`.
+- **Piped-install hardening** — `curl ... | bash` never uses the current
+  directory as a payload source, even when run from inside a checkout.
+
 ## [1.2.0] — 2026-10-19
 
 Memory, hygiene, and scripting — environments now track their own lifecycle.
