@@ -19,7 +19,7 @@ class IkshvakuPEM < Formula
         source #{HOMEBREW_PREFIX}/share/ikshvaku/completion.sh
 
       Environments install to ~/.Python-Env. uv is downloaded automatically
-      on first use. Upgrade with: brew upgrade ikshvaku
+      on first use. Upgrade with: brew upgrade ikshvakupem
     EOS
   end
 
