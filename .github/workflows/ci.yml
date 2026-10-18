@@ -12,11 +12,11 @@ jobs:
       - uses: actions/checkout@v4
       - name: Bash syntax check
         run: |
-          for f in *.sh; do
+          for f in src/*.sh *.sh; do
             bash -n "$f"
           done
       - name: ShellCheck
-        run: shellcheck --severity=warning ikshvaku.sh install.sh uninstall.sh completion.sh
+        run: shellcheck --severity=warning src/*.sh *.sh
 
   smoke-test:
     strategy:
@@ -130,7 +130,7 @@ jobs:
       - name: PowerShell parse check
         shell: pwsh
         run: |
-          foreach ($f in @('ikshvaku.ps1', 'install.ps1', 'uninstall.ps1')) {
+          foreach ($f in @('src/ikshvaku.ps1', 'install.ps1', 'src/uninstall.ps1')) {
             $errs = $null
             [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $f).Path, [ref]$null, [ref]$errs) | Out-Null
             if ($errs.Count -gt 0) { $errs | ForEach-Object { Write-Host $_.Message }; exit 1 }

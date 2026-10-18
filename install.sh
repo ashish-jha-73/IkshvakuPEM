@@ -7,20 +7,26 @@ if [[ $EUID -eq 0 ]]; then
 fi
 
 # Where this script lives — and where its payload files are.
-# When piped (curl ... | bash) there is no checkout on disk: fetch the
-# payload from GitHub instead. IKSHVAKU_REPO_RAW overrides the source
-# (useful for forks and tests).
+# Payloads live in src/ in this repository. When piped (curl ... | bash) there
+# is no checkout on disk: fetch them from GitHub instead.
+# IKSHVAKU_REPO_RAW overrides the source (useful for forks and tests).
 SCRIPT_DIR="$(dirname "$0")"
-if [ ! -f "$SCRIPT_DIR/ikshvaku.sh" ]; then
+PAYLOAD_DIR=""
+if [ -f "$SCRIPT_DIR/src/ikshvaku.sh" ]; then
+  PAYLOAD_DIR="$SCRIPT_DIR/src"        # repository checkout (this layout)
+elif [ -f "$SCRIPT_DIR/ikshvaku.sh" ]; then
+  PAYLOAD_DIR="$SCRIPT_DIR"            # legacy flat checkout
+fi
+if [ -z "$PAYLOAD_DIR" ]; then
   RAW_BASE="${IKSHVAKU_REPO_RAW:-https://raw.githubusercontent.com/ashish-jha-73/IkshvakuPEM/main}"
   PAYLOAD_DIR="$(mktemp -d)"
   trap 'rm -rf "$PAYLOAD_DIR"' EXIT
   printf ":: Remote install — downloading Ikshvaku files...\n"
   ikshvaku_fetch() {
     if command -v curl >/dev/null 2>&1; then
-      curl -fsSL "$RAW_BASE/$1" -o "$PAYLOAD_DIR/$1"
+      curl -fsSL "$RAW_BASE/src/$1" -o "$PAYLOAD_DIR/$1"
     elif command -v wget >/dev/null 2>&1; then
-      wget -qO "$PAYLOAD_DIR/$1" "$RAW_BASE/$1"
+      wget -qO "$PAYLOAD_DIR/$1" "$RAW_BASE/src/$1"
     else
       printf "\033[0;31m❌ curl or wget is required to install Ikshvaku\033[0m\n"
       exit 1
@@ -32,7 +38,6 @@ if [ ! -f "$SCRIPT_DIR/ikshvaku.sh" ]; then
       exit 1
     }
   done
-  SCRIPT_DIR="$PAYLOAD_DIR"
 fi
 
 OS_NAME="$(uname -s)"                       # Linux / Darwin / MINGW*_NT-* (Git Bash) / ...
@@ -91,7 +96,7 @@ fi
 mkdir -p "$INSTALL_DIR" "$BIN_DIR" "$ENV_DIR"
 touch "$RC_FILE"
 
-cp -f "$SCRIPT_DIR/ikshvaku.sh" "$SCRIPT_DIR/completion.sh" "$SCRIPT_DIR/uninstall.sh" "$INSTALL_DIR/"
+cp -f "$PAYLOAD_DIR/ikshvaku.sh" "$PAYLOAD_DIR/completion.sh" "$PAYLOAD_DIR/uninstall.sh" "$INSTALL_DIR/"
 chmod +x "$INSTALL_DIR"/*.sh
 
 ln -sf "$INSTALL_DIR/uninstall.sh" "$BIN_DIR/ikshvaku-uninstall"

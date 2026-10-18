@@ -7,12 +7,12 @@ lines of Bash and PowerShell — so reading the entire codebase takes minutes.
 
 | File | Role |
 |---|---|
-| `ikshvaku.sh` | Core: shell function for bash/zsh/Git Bash (Linux, macOS, WSL) |
-| `completion.sh` | Bash tab completion (zsh uses it via `bashcompinit`) |
-| `ikshvaku.ps1` | Core: PowerShell function (also dispatched by the cmd shim) |
-| `ikshvaku.cmd` | cmd shim — native `activate`/`deactivate`, delegates the rest |
+| `src/ikshvaku.sh` | Core: shell function for bash/zsh/Git Bash (Linux, macOS, WSL) |
+| `src/completion.sh` | Bash tab completion (zsh uses it via `bashcompinit`) |
+| `src/ikshvaku.ps1` | Core: PowerShell function (also dispatched by the cmd shim) |
+| `src/ikshvaku.cmd` | cmd shim — native `activate`/`deactivate`, delegates the rest |
 | `install.sh` / `install.ps1` | Installers (work locally **and** via one-line remote install) |
-| `uninstall.sh` / `uninstall.ps1` | Clean removal |
+| `src/uninstall.sh` / `src/uninstall.ps1` | Clean removal |
 | `.github/workflows/ci.yml` | CI: lint + smoke tests on Ubuntu, macOS, Windows |
 
 ## Local development

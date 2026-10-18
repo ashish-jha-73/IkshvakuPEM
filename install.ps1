@@ -14,19 +14,26 @@ $UvInstaller = 'https://astral.sh/uv/install.ps1'
 $IkshvakuVersion = '1.2.0'
 
 # Where this script lives — and where its payload files are.
-# When run remotely (irm ... | iex) $PSScriptRoot is empty: fetch the payload
-# from GitHub instead. IKSHVAKU_REPO_RAW overrides the source (tests/forks).
+# Payloads live in src/ in this repository. When run remotely
+# (irm ... | iex) $PSScriptRoot is empty: fetch them from GitHub instead.
+# IKSHVAKU_REPO_RAW overrides the source (useful for forks and tests).
 $scriptDir = $PSScriptRoot
 $fetchedRemotely = $false
-if (-not $scriptDir -or -not (Test-Path (Join-Path $scriptDir 'ikshvaku.ps1'))) {
+$payloadDir = $null
+if ($scriptDir -and (Test-Path (Join-Path (Join-Path $scriptDir 'src') 'ikshvaku.ps1'))) {
+    $payloadDir = Join-Path $scriptDir 'src'          # repository checkout (this layout)
+} elseif ($scriptDir -and (Test-Path (Join-Path $scriptDir 'ikshvaku.ps1'))) {
+    $payloadDir = $scriptDir                          # legacy flat checkout
+}
+if (-not $payloadDir) {
     $rawBase = if ($env:IKSHVAKU_REPO_RAW) { $env:IKSHVAKU_REPO_RAW } else { 'https://raw.githubusercontent.com/ashish-jha-73/IkshvakuPEM/main' }
-    $scriptDir = Join-Path ([IO.Path]::GetTempPath()) ("ikshvaku-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
-    New-Item -ItemType Directory -Force -Path $scriptDir | Out-Null
+    $payloadDir = Join-Path ([IO.Path]::GetTempPath()) ("ikshvaku-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
+    New-Item -ItemType Directory -Force -Path $payloadDir | Out-Null
     $fetchedRemotely = $true
     Write-Host ':: Remote install — downloading Ikshvaku files...'
     foreach ($f in @('ikshvaku.ps1', 'ikshvaku.cmd', 'uninstall.ps1')) {
         try {
-            Invoke-WebRequest -Uri "$rawBase/$f" -OutFile (Join-Path $scriptDir $f) -UseBasicParsing
+            Invoke-WebRequest -Uri "$rawBase/src/$f" -OutFile (Join-Path $payloadDir $f) -UseBasicParsing
         } catch {
             Write-Host "❌ download failed ($f): $_" -ForegroundColor Red
             exit 1
@@ -71,11 +78,11 @@ foreach ($dir in @($InstallDir, $BinDir, $EnvDir)) {
     New-Item -ItemType Directory -Force -Path $dir | Out-Null
 }
 
-Copy-Item -Force (Join-Path $scriptDir 'ikshvaku.ps1')  $InstallDir
-Copy-Item -Force (Join-Path $scriptDir 'ikshvaku.cmd')  $InstallDir
-Copy-Item -Force (Join-Path $scriptDir 'uninstall.ps1') $InstallDir
-Copy-Item -Force (Join-Path $scriptDir 'ikshvaku.cmd')  $BinDir
-if ($fetchedRemotely) { Remove-Item -Recurse -Force $scriptDir -ErrorAction SilentlyContinue }
+Copy-Item -Force (Join-Path $payloadDir 'ikshvaku.ps1')  $InstallDir
+Copy-Item -Force (Join-Path $payloadDir 'ikshvaku.cmd')  $InstallDir
+Copy-Item -Force (Join-Path $payloadDir 'uninstall.ps1') $InstallDir
+Copy-Item -Force (Join-Path $payloadDir 'ikshvaku.cmd')  $BinDir
+if ($fetchedRemotely) { Remove-Item -Recurse -Force $payloadDir -ErrorAction SilentlyContinue }
 
 # --- wire up $PROFILE so the function loads in PowerShell ---
 $profilePath = $PROFILE.CurrentUserAllHosts
