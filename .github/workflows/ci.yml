@@ -63,7 +63,7 @@ jobs:
           ikshvaku --version
           mkdir -p "$RUNNER_TEMP/myproj/sub"
           cd "$RUNNER_TEMP/myproj"
-          ikshvaku init > /dev/null 2>&1
+          ikshvaku init
           [ "$VIRTUAL_ENV" = "$HOME/.Python-Env/myproj" ] || { echo "❌ init did not activate"; exit 1; }
           ikshvaku status | grep "Active env:" > /dev/null || { echo "❌ status failed"; exit 1; }
           ikshvaku deactivate
