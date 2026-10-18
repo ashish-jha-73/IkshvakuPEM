@@ -1,0 +1,132 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bash syntax check
+        run: |
+          for f in *.sh; do
+            bash -n "$f"
+          done
+      - name: ShellCheck
+        run: shellcheck --severity=warning ikshvaku.sh install.sh uninstall.sh completion.sh
+
+  smoke-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run installer (downloads uv if missing)
+        run: bash install.sh
+
+      - name: Installer works from any cwd
+        run: |
+          cd "$RUNNER_TEMP"
+          bash "$GITHUB_WORKSPACE/install.sh"
+          test -f ~/.ikshvaku/ikshvaku.sh && echo "install from any cwd: OK"
+
+      - name: Smoke test (bash)
+        run: |
+          source ~/.ikshvaku/ikshvaku.sh
+          ikshvaku list
+          ikshvaku create cienv
+          ikshvaku install cienv idna
+          ikshvaku activate cienv
+          echo "VIRTUAL_ENV=$VIRTUAL_ENV"
+          [ -n "$VIRTUAL_ENV" ] || { echo "❌ activation failed"; exit 1; }
+          pip install packaging
+          python -c "import packaging"
+          python -m pip --version
+          ikshvaku install six
+          python -c "import six"
+          deactivate
+          ikshvaku remove cienv
+          ikshvaku list
+
+      - name: Smoke test (zsh)
+        if: runner.os != 'Windows'
+        shell: zsh {0}
+        run: |
+          autoload -U +X bashcompinit && bashcompinit
+          source ~/.ikshvaku/ikshvaku.sh
+          source ~/.ikshvaku/completion.sh
+          ikshvaku list
+          ikshvaku create zshtest
+          ikshvaku activate zshtest
+          [ -n "$VIRTUAL_ENV" ] || { echo "❌ zsh activation failed"; exit 1; }
+          pip --version
+          deactivate
+          ikshvaku remove zshtest
+
+  smoke-test-powershell:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: PowerShell parse check
+        shell: pwsh
+        run: |
+          foreach ($f in @('ikshvaku.ps1', 'install.ps1', 'uninstall.ps1')) {
+            $errs = $null
+            [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $f).Path, [ref]$null, [ref]$errs) | Out-Null
+            if ($errs.Count -gt 0) { $errs | ForEach-Object { Write-Host $_.Message }; exit 1 }
+            Write-Host "$f: parse OK"
+          }
+
+      - name: Install (PowerShell 5.1, downloads uv if missing)
+        shell: powershell
+        run: ./install.ps1
+
+      - name: Smoke test (PowerShell 5.1)
+        shell: powershell
+        run: |
+          $env:Path = "$env:USERPROFILE\.local\bin;$env:Path"
+          . "$env:USERPROFILE\.ikshvaku\ikshvaku.ps1"
+          ikshvaku list
+          ikshvaku create cienv
+          ikshvaku install cienv idna
+          ikshvaku activate cienv
+          if (-not $env:VIRTUAL_ENV) { throw '❌ activation failed' }
+          python --version
+          pip --version
+          deactivate
+          if ($env:VIRTUAL_ENV) { throw '❌ deactivate failed' }
+          ikshvaku remove cienv
+
+      - name: Smoke test (PowerShell 7)
+        shell: pwsh
+        run: |
+          $env:Path = "$env:USERPROFILE\.local\bin;$env:Path"
+          . "$env:USERPROFILE\.ikshvaku\ikshvaku.ps1"
+          ikshvaku create cienv7
+          ikshvaku install cienv7 six
+          ikshvaku activate cienv7
+          if (-not $env:VIRTUAL_ENV) { throw '❌ activation failed' }
+          deactivate
+          ikshvaku remove cienv7
+
+      - name: Smoke test (cmd shim)
+        shell: cmd
+        run: |
+          set PATH=%USERPROFILE%\.local\bin;%PATH%
+          ikshvaku create cmdenv
+          ikshvaku activate cmdenv
+          if not defined VIRTUAL_ENV exit /b 1
+          python --version
+          ikshvaku deactivate
+          if defined VIRTUAL_ENV exit /b 1
+          ikshvaku remove cmdenv

@@ -6,7 +6,7 @@ _ikshvaku_complete() {
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    cmds="list create activate deactivate remove"
+    cmds="list create activate deactivate install remove"
 
     envs=$(ls "$HOME/.Python-Env" 2>/dev/null)
 
@@ -16,7 +16,7 @@ _ikshvaku_complete() {
     fi
 
     case "$prev" in
-        activate|remove)
+        activate|remove|install)
             COMPREPLY=( $(compgen -W "$envs" -- "$cur") )
             ;;
     esac
