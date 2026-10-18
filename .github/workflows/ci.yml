@@ -104,7 +104,12 @@ jobs:
           export HOME=$(mktemp -d)
           curl -LsSf "https://raw.githubusercontent.com/ashish-jha-73/IkshvakuPEM/main/install.sh?cb=$CB" | bash > /dev/null 2>&1
           source "$HOME/.ikshvaku/ikshvaku.sh"
-          ikshvaku upgrade | grep "Restart your shell" > /dev/null || { echo "❌ upgrade failed"; exit 1; }
+          ok=""
+          for i in 1 2 3; do
+            if ikshvaku upgrade 2>/dev/null | grep "Restart your shell" > /dev/null; then ok=1; break; fi
+            sleep 15
+          done
+          [ -n "$ok" ] || { echo "❌ upgrade failed"; exit 1; }
           echo "✅ upgrade ran"
 
       - name: Install zsh (Ubuntu runners don't ship it)

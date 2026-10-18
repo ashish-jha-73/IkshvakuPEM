@@ -760,7 +760,8 @@ function ikshvaku {
         'upgrade' {
             Write-Host "ikshvaku $global:IkshvakuVersion — upgrading to the latest release..."
             try {
-                Invoke-RestMethod -Uri 'https://raw.githubusercontent.com/ashish-jha-73/IkshvakuPEM/main/install.ps1' | Invoke-Expression
+                $ikUrl = "https://raw.githubusercontent.com/ashish-jha-73/IkshvakuPEM/main/install.ps1?cb=" + [DateTimeOffset]::Now.ToUnixTimeSeconds()
+                Invoke-RestMethod -Uri $ikUrl | Invoke-Expression
             } catch {
                 Write-Host "⚠️  upgrade failed — run the install command manually" -ForegroundColor Red
                 return

@@ -712,10 +712,11 @@ ikshvaku() {
         upgrade)
             echo "ikshvaku $IKSHVAKU_VERSION — upgrading to the latest release..."
             local ik_url="${IKSHVAKU_REPO_RAW:-https://raw.githubusercontent.com/ashish-jha-73/IkshvakuPEM/main}/install.sh"
+            # cache-bust: an upgrade must never receive a stale installer from the CDN
             if command -v curl >/dev/null 2>&1; then
-                curl -fsSL "$ik_url" | bash || { echo "⚠️  upgrade failed — run the install command manually"; return 1; }
+                curl -fsSL "$ik_url?cb=$(date +%s)" | bash || { echo "⚠️  upgrade failed — run the install command manually"; return 1; }
             elif command -v wget >/dev/null 2>&1; then
-                wget -qO- "$ik_url" | bash || { echo "⚠️  upgrade failed — run the install command manually"; return 1; }
+                wget -qO- "$ik_url?cb=$(date +%s)" | bash || { echo "⚠️  upgrade failed — run the install command manually"; return 1; }
             else
                 echo "❌ curl or wget is required to upgrade"
                 return 1
