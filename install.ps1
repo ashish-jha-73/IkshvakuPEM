@@ -11,6 +11,7 @@ $InstallDir  = Join-Path $env:USERPROFILE '.ikshvaku'
 $BinDir      = Join-Path $env:USERPROFILE '.local\bin'
 $EnvDir      = Join-Path $env:USERPROFILE '.Python-Env'
 $UvInstaller = 'https://astral.sh/uv/install.ps1'
+$IkshvakuVersion = '1.1.0'
 
 # Where this script lives — and where its payload files are.
 # When run remotely (irm ... | iex) $PSScriptRoot is empty: fetch the payload
@@ -33,7 +34,7 @@ if (-not $scriptDir -or -not (Test-Path (Join-Path $scriptDir 'ikshvaku.ps1'))) 
     }
 }
 
-Write-Host ':: Installing Ikshvaku...'
+Write-Host ":: Installing Ikshvaku $IkshvakuVersion..."
 Write-Host ":: PowerShell $($PSVersionTable.PSVersion) ($($PSVersionTable.PSEdition) Edition)"
 
 # --- uv: powers all environments. Downloaded automatically if missing. ---

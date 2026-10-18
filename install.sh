@@ -48,13 +48,14 @@ INSTALL_DIR="$HOME/.ikshvaku"
 BIN_DIR="$HOME/.local/bin"
 ENV_DIR="$HOME/.Python-Env"
 UV_INSTALLER="https://astral.sh/uv/install.sh"
+IKSHVAKU_VERSION="1.1.0"
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[0;33m'
 RESET='\033[0m'
 
-printf ":: Installing Ikshvaku...\n"
+printf ":: Installing Ikshvaku %s...\n" "$IKSHVAKU_VERSION"
 printf ":: Detected OS: %s | Shell: %s\n" "$OS_NAME" "$SHELL_NAME"
 
 # uv lives in ~/.local/bin (or ~/.cargo/bin on older setups) — make sure it is reachable

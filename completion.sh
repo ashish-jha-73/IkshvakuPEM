@@ -7,7 +7,7 @@ _ikshvaku_complete() {
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    cmds="list create activate deactivate install remove"
+    cmds="list create activate deactivate install remove init link unlink links status doctor auto"
 
     envs=$(ls "$HOME/.Python-Env" 2>/dev/null)
 
@@ -18,7 +18,7 @@ _ikshvaku_complete() {
     fi
 
     case "$prev" in
-        activate|remove|install)
+        activate|remove|install|link)
             # shellcheck disable=SC2207  # bash 3.2 (macOS) has no mapfile; splitting is intended
             COMPREPLY=( $(compgen -W "$envs" -- "$cur") )
             ;;

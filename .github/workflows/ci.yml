@@ -57,6 +57,22 @@ jobs:
           ikshvaku remove cienv
           ikshvaku list
 
+      - name: Project linking (init / status / bare activate / doctor)
+        run: |
+          source ~/.ikshvaku/ikshvaku.sh
+          ikshvaku --version
+          mkdir -p "$RUNNER_TEMP/myproj/sub"
+          cd "$RUNNER_TEMP/myproj"
+          ikshvaku init > /dev/null 2>&1
+          [ "$VIRTUAL_ENV" = "$HOME/.Python-Env/myproj" ] || { echo "❌ init did not activate"; exit 1; }
+          ikshvaku status | grep -q "Active env:" || { echo "❌ status failed"; exit 1; }
+          ikshvaku deactivate
+          cd "$RUNNER_TEMP/myproj/sub"
+          ikshvaku activate
+          [ "$IKSHVAKU_ACTIVE" = "myproj" ] || { echo "❌ bare activate walk-up failed"; exit 1; }
+          ikshvaku doctor > /dev/null || { echo "❌ doctor failed"; exit 1; }
+          ikshvaku unlink > /dev/null
+
       - name: Install zsh (Ubuntu runners don't ship it)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y zsh
@@ -75,6 +91,17 @@ jobs:
           pip --version
           deactivate
           ikshvaku remove zshtest
+          ikshvaku auto on > /dev/null
+          mkdir -p "$HOME/zproj"
+          cd "$HOME/zproj"
+          ikshvaku init > /dev/null 2>&1
+          [ -n "$VIRTUAL_ENV" ] || { echo "❌ zsh init failed"; exit 1; }
+          ikshvaku deactivate
+          cd "$HOME"
+          cd "$HOME/zproj"   # chpwd hook fires -> auto-activates
+          [ -n "$VIRTUAL_ENV" ] || { echo "❌ zsh auto-activation failed"; exit 1; }
+          ikshvaku auto off > /dev/null
+          ikshvaku remove zproj
 
   smoke-test-powershell:
     runs-on: windows-latest
@@ -111,6 +138,29 @@ jobs:
           if ($env:VIRTUAL_ENV) { throw '❌ deactivate failed' }
           ikshvaku remove cienv
 
+      - name: Project linking (init / bare activate / auto / doctor)
+        run: |
+          $env:Path = "$env:USERPROFILE\.local\bin;$env:Path"
+          . "$env:USERPROFILE\.ikshvaku\ikshvaku.ps1"
+          $proj = Join-Path $env:RUNNER_TEMP 'psproj'
+          New-Item -ItemType Directory -Force -Path $proj | Out-Null
+          Set-Location $proj
+          ikshvaku init | Out-Null
+          if ($env:IKSHVAKU_ACTIVE -ne 'psproj') { throw '❌ init failed' }
+          ikshvaku deactivate
+          Set-Location $proj
+          ikshvaku activate
+          if ($env:IKSHVAKU_ACTIVE -ne 'psproj') { throw '❌ bare activate failed' }
+          ikshvaku auto on | Out-Null
+          Set-Location $env:USERPROFILE
+          ikshvaku deactivate
+          Set-Location $proj
+          if ($env:IKSHVAKU_ACTIVE -ne 'psproj') { throw '❌ auto activation failed' }
+          ikshvaku auto off | Out-Null
+          $d = (ikshvaku doctor | Out-String)
+          if ($d -notmatch 'All checks passed') { throw "❌ doctor failed: $d" }
+          ikshvaku unlink | Out-Null
+
       - name: Smoke test (PowerShell 7)
         shell: pwsh
         run: |
@@ -123,14 +173,42 @@ jobs:
           deactivate
           ikshvaku remove cienv7
 
+      - name: Project linking (PowerShell 7)
+        run: |
+          $env:Path = "$env:USERPROFILE\.local\bin;$env:Path"
+          . "$env:USERPROFILE\.ikshvaku\ikshvaku.ps1"
+          $proj = Join-Path $env:RUNNER_TEMP 'psproj7'
+          New-Item -ItemType Directory -Force -Path $proj | Out-Null
+          Set-Location $proj
+          ikshvaku init | Out-Null
+          if ($env:IKSHVAKU_ACTIVE -ne 'psproj7') { throw '❌ init failed' }
+          ikshvaku deactivate
+          Set-Location $proj
+          ikshvaku activate
+          if ($env:IKSHVAKU_ACTIVE -ne 'psproj7') { throw '❌ bare activate failed' }
+          ikshvaku auto on | Out-Null
+          Set-Location $env:USERPROFILE
+          ikshvaku deactivate
+          Set-Location $proj
+          if ($env:IKSHVAKU_ACTIVE -ne 'psproj7') { throw '❌ auto activation failed' }
+          ikshvaku auto off | Out-Null
+          $d = (ikshvaku doctor | Out-String)
+          if ($d -notmatch 'All checks passed') { throw "❌ doctor failed: $d" }
+          ikshvaku unlink | Out-Null
+
       - name: Smoke test (cmd shim)
         shell: cmd
         run: |
           set PATH=%USERPROFILE%\.local\bin;%PATH%
-          ikshvaku create cmdenv
-          ikshvaku activate cmdenv
+          mkdir %RUNNER_TEMP%\cmdproj
+          cd /d %RUNNER_TEMP%\cmdproj
+          ikshvaku init
+          if not exist "%USERPROFILE%\.Python-Env\cmdproj" exit /b 1
+          ikshvaku activate
           if not defined VIRTUAL_ENV exit /b 1
           python --version
           ikshvaku deactivate
           if defined VIRTUAL_ENV exit /b 1
-          ikshvaku remove cmdenv
+          ikshvaku activate
+          if not defined VIRTUAL_ENV exit /b 1
+          ikshvaku remove cmdproj

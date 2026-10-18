@@ -1,7 +1,10 @@
 # ~/.ikshvaku/ikshvaku.sh
 # shellcheck shell=bash
 
+IKSHVAKU_VERSION="1.1.0"
 IKSHVAKU_UV_INSTALLER="https://astral.sh/uv/install.sh"
+IKSHVAKU_ENV_DIR="${IKSHVAKU_ENV_DIR:-$HOME/.Python-Env}"
+IKSHVAKU_HOME="${IKSHVAKU_HOME:-$HOME/.ikshvaku}"
 
 # Download and install uv if it is not already available.
 ikshvaku_uv_install() {
@@ -75,8 +78,108 @@ ikshvaku_activate_script() {
     fi
 }
 
+# Print the path to an environment's python interpreter.
+ikshvaku_env_python() {
+    local env_path="$1"
+    if [ -f "$env_path/bin/python" ]; then
+        printf '%s' "$env_path/bin/python"
+    elif [ -f "$env_path/Scripts/python.exe" ]; then
+        printf '%s' "$env_path/Scripts/python.exe"
+    else
+        return 1
+    fi
+}
+
+# Create a seeded environment (shared by `create` and `init`).
+ikshvaku_create_env() {
+    local name="$1" pyver="$2"
+    [ -z "$name" ] && { echo "Usage: ikshvaku create <env> [python-version]"; return 1; }
+    [ -e "$IKSHVAKU_ENV_DIR/$name" ] && { echo "Environment '$name' already exists"; return 1; }
+    ikshvaku_uv_install || return 1
+    mkdir -p "$IKSHVAKU_ENV_DIR"
+    if [ -n "$pyver" ]; then
+        uv venv --seed --python "$pyver" "$IKSHVAKU_ENV_DIR/$name" || return 1
+    else
+        uv venv --seed "$IKSHVAKU_ENV_DIR/$name" || return 1
+    fi
+    # --seed installs real pip; the shim below is only a fallback
+    ikshvaku_pip_shim "$IKSHVAKU_ENV_DIR/$name"
+    echo "Environment '$name' created"
+}
+
+# --- registry: project directory <-> environment links ---
+
+ikshvaku_registry_get() {
+    [ -f "$IKSHVAKU_HOME/registry" ] || return 1
+    awk -F'|' -v d="$1" '$1 == d { print $2; exit }' "$IKSHVAKU_HOME/registry"
+}
+
+ikshvaku_registry_set() {
+    mkdir -p "$IKSHVAKU_HOME"
+    {
+        awk -F'|' -v d="$1" 'NF >= 2 && $1 != d' "$IKSHVAKU_HOME/registry" 2>/dev/null
+        printf '%s|%s\n' "$1" "$2"
+    } > "$IKSHVAKU_HOME/registry.tmp" && mv "$IKSHVAKU_HOME/registry.tmp" "$IKSHVAKU_HOME/registry"
+}
+
+ikshvaku_registry_del() {
+    [ -f "$IKSHVAKU_HOME/registry" ] || return 0
+    awk -F'|' -v d="$1" 'NF >= 2 && $1 != d' "$IKSHVAKU_HOME/registry" \
+        > "$IKSHVAKU_HOME/registry.tmp" \
+        && mv "$IKSHVAKU_HOME/registry.tmp" "$IKSHVAKU_HOME/registry"
+}
+
+# Nearest linked env for a directory, walking up (git-style).
+ikshvaku_auto_lookup() {
+    local d="$1" r
+    while :; do
+        r=$(ikshvaku_registry_get "$d")
+        [ -n "$r" ] && { printf '%s' "$r"; return 0; }
+        [ "$d" = "/" ] && return 1
+        d=$(dirname "$d")
+    done
+}
+
+# --- auto-activation on cd (opt-in: ikshvaku auto on) ---
+
+ikshvaku_auto_check() {
+    [ -f "$IKSHVAKU_HOME/auto-on" ] || return 0
+    # bash fires this on every prompt — only act when the directory changed
+    if [ -z "${ZSH_VERSION:-}" ]; then
+        [ "${_IKSHVAKU_LAST_DIR:-}" = "$PWD" ] && return 0
+        _IKSHVAKU_LAST_DIR="$PWD"
+    fi
+    local target
+    target=$(ikshvaku_auto_lookup "$PWD") || return 0
+    [ -n "$target" ] || return 0
+    [ "$target" = "${IKSHVAKU_ACTIVE:-}" ] && return 0
+    [ -d "$IKSHVAKU_ENV_DIR/$target" ] || return 0
+    [ -n "${IKSHVAKU_ACTIVE:-}" ] && deactivate >/dev/null 2>&1
+    if ikshvaku activate "$target" >/dev/null 2>&1; then
+        printf '\033[0;36m⚡ ikshvaku: %s activated\033[0m\n' "$target"
+    fi
+    return 0
+}
+
+ikshvaku_auto_install_hook() {
+    if [ -n "${ZSH_VERSION:-}" ]; then
+        autoload -U add-zsh-hook 2>/dev/null
+        add-zsh-hook chpwd ikshvaku_auto_check 2>/dev/null
+    else
+        case ";${PROMPT_COMMAND:-};" in
+            *";ikshvaku_auto_check;"*) ;;
+            *) PROMPT_COMMAND="ikshvaku_auto_check${PROMPT_COMMAND:+;$PROMPT_COMMAND}" ;;
+        esac
+    fi
+}
+
+# install the auto-activation hook on shell startup if it is enabled
+if [ -f "$IKSHVAKU_HOME/auto-on" ]; then
+    ikshvaku_auto_install_hook
+fi
+
 ikshvaku() {
-    local ENV_DIR="$HOME/.Python-Env"
+    local ENV_DIR="$IKSHVAKU_ENV_DIR"
 
     case "$1" in
         list)
@@ -88,29 +191,84 @@ ikshvaku() {
             ;;
 
         create)
-            [ -z "$2" ] && echo "Usage: ikshvaku create <env> [python-version]" && return 1
-            [ -e "$ENV_DIR/$2" ] && echo "Environment '$2' already exists" && return 1
-            ikshvaku_uv_install || return 1
-            mkdir -p "$ENV_DIR"
-            if [ -n "$3" ]; then
-                uv venv --seed --python "$3" "$ENV_DIR/$2" || return 1
-            else
-                uv venv --seed "$ENV_DIR/$2" || return 1
-            fi
-            # --seed installs real pip; the shim below is only a fallback
-            # for environments that somehow end up without one
-            ikshvaku_pip_shim "$ENV_DIR/$2"
-            echo "Environment '$2' created"
+            [ -z "$2" ] && { echo "Usage: ikshvaku create <env> [python-version]"; return 1; }
+            ikshvaku_create_env "$2" "$3" || return 1
             echo "Tip: activate it, then: pip install <package>"
             ;;
 
+        init)
+            local dir name
+            dir=$(pwd -P)
+            if [ "$dir" = "$HOME" ]; then
+                echo "Refusing to link your home directory (it would match every subdirectory)"
+                return 1
+            fi
+            if [ -n "$2" ]; then
+                name="$2"
+            else
+                name=$(basename "$dir" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9._-]/-/g; s/^-*//; s/-*$//')
+                [ -z "$name" ] && name="env"
+            fi
+            if [ ! -d "$ENV_DIR/$name" ]; then
+                ikshvaku_create_env "$name" "$3" || return 1
+            fi
+            ikshvaku_registry_set "$dir" "$name"
+            echo "Linked $dir -> '$name'"
+            [ -n "${IKSHVAKU_ACTIVE:-}" ] && [ "$IKSHVAKU_ACTIVE" != "$name" ] && deactivate >/dev/null 2>&1
+            ikshvaku activate "$name"
+            ;;
+
+        link)
+            [ -z "$2" ] && { echo "Usage: ikshvaku link <env>"; return 1; }
+            [ ! -d "$ENV_DIR/$2" ] && { echo "Env not found: $2"; return 1; }
+            ikshvaku_registry_set "$(pwd -P)" "$2"
+            echo "Linked $(pwd -P) -> '$2'"
+            ;;
+
+        unlink)
+            local cur
+            cur=$(pwd -P)
+            if [ -z "$(ikshvaku_registry_get "$cur")" ]; then
+                echo "This directory has no linked environment"
+                return 1
+            fi
+            ikshvaku_registry_del "$cur"
+            echo "Unlinked $cur"
+            ;;
+
+        links)
+            if [ ! -s "$IKSHVAKU_HOME/registry" ]; then
+                echo "No projects linked yet. Run: ikshvaku init"
+                return 0
+            fi
+            local ld le
+            while IFS='|' read -r ld le; do
+                [ -z "$ld" ] && continue
+                if [ -d "$ENV_DIR/$le" ]; then
+                    printf '%s  ->  %s\n' "$ld" "$le"
+                else
+                    printf '%s  ->  %s  (missing env)\n' "$ld" "$le"
+                fi
+            done < "$IKSHVAKU_HOME/registry"
+            ;;
+
         activate)
-            [ -z "$2" ] && echo "Usage: ikshvaku activate <env>" && return 1
-            local env_act
-            env_act=$(ikshvaku_activate_script "$ENV_DIR/$2") || { echo "Env not found"; return 1; }
+            local target env_act
+            target="$2"
+            if [ -z "$target" ]; then
+                # bare activate: use this project's linked env (nearest parent)
+                target=$(ikshvaku_auto_lookup "$(pwd -P)")
+                if [ -z "$target" ]; then
+                    echo "No environment linked to this directory. Run: ikshvaku init"
+                    return 1
+                fi
+            fi
+            [ "$target" = "${IKSHVAKU_ACTIVE:-}" ] && { echo "Already in '$target'"; return 0; }
+            [ ! -d "$ENV_DIR/$target" ] && { echo "Env not found: $target"; return 1; }
+            env_act=$(ikshvaku_activate_script "$ENV_DIR/$target") || { echo "Env not found"; return 1; }
             # shellcheck disable=SC1090  # venv's activate script, path is dynamic by design
             source "$env_act"
-            export IKSHVAKU_ACTIVE="$2"
+            export IKSHVAKU_ACTIVE="$target"
             ;;
 
         deactivate)
@@ -143,13 +301,11 @@ ikshvaku() {
                 return 1
             fi
             ikshvaku_uv_install || return 1
-            # Windows venvs put python in Scripts/python.exe instead of bin/python
-            local env_bin env_act
-            if [ -f "$ENV_DIR/$env_name/bin/python" ]; then
-                env_bin="$ENV_DIR/$env_name/bin/python"
-            else
-                env_bin="$ENV_DIR/$env_name/Scripts/python.exe"
-            fi
+            local env_py env_act
+            env_py=$(ikshvaku_env_python "$ENV_DIR/$env_name") || {
+                echo "Env '$env_name' is missing its python"
+                return 1
+            }
             env_act=$(ikshvaku_activate_script "$ENV_DIR/$env_name") || {
                 echo "Env '$env_name' is missing its activate script"
                 return 1
@@ -161,8 +317,137 @@ ikshvaku() {
                 # shellcheck disable=SC1090  # venv's activate script, path is dynamic by design
                 source "$env_act"
                 export IKSHVAKU_ACTIVE="$env_name"
-                uv pip install --python "$env_bin" "$@"
+                uv pip install --python "$env_py" "$@"
             )
+            ;;
+
+        status)
+            echo "ikshvaku $IKSHVAKU_VERSION"
+            if [ -n "${IKSHVAKU_ACTIVE:-}" ]; then
+                echo "Active env:   $IKSHVAKU_ACTIVE  ($ENV_DIR/$IKSHVAKU_ACTIVE)"
+            else
+                echo "Active env:   none"
+            fi
+            local here linked
+            here=$(pwd -P)
+            linked=$(ikshvaku_registry_get "$here")
+            if [ -n "$linked" ]; then
+                echo "Linked:       this directory -> $linked"
+            else
+                linked=$(ikshvaku_auto_lookup "$here")
+                if [ -n "$linked" ]; then
+                    echo "Linked:       parent directory -> $linked"
+                else
+                    echo "Linked:       none (run: ikshvaku init)"
+                fi
+            fi
+            local show env_py count
+            show="${IKSHVAKU_ACTIVE:-}"
+            [ -z "$show" ] && show="$linked"
+            if [ -n "$show" ] && [ -d "$ENV_DIR/$show" ]; then
+                if env_py=$(ikshvaku_env_python "$ENV_DIR/$show"); then
+                    echo "Python:       $("$env_py" --version 2>&1)"
+                fi
+                if command -v uv >/dev/null 2>&1; then
+                    count=$(uv pip list --python "$ENV_DIR/$show" 2>/dev/null | awk 'NR>2' | wc -l | tr -d ' ')
+                    echo "Packages:     ${count:-0}"
+                else
+                    echo "Packages:     ? (uv not found)"
+                fi
+                echo "Size:         $(du -sh "$ENV_DIR/$show" 2>/dev/null | cut -f1)"
+            fi
+            ;;
+
+        doctor)
+            local ok=1
+            echo "ikshvaku $IKSHVAKU_VERSION — health check"
+            echo ""
+            if [ -f "$HOME/.ikshvaku/ikshvaku.sh" ]; then
+                echo "✅ installation: ~/.ikshvaku present"
+            else
+                echo "❌ installation: ~/.ikshvaku not found — run the installer"
+                ok=0
+            fi
+            if command -v uv >/dev/null 2>&1; then
+                echo "✅ uv: $(uv --version 2>/dev/null) at $(command -v uv)"
+            else
+                echo "❌ uv: not found — it will be downloaded on the next create/install"
+                ok=0
+            fi
+            local n
+            if [ -d "$ENV_DIR" ]; then
+                n=$(ls -A "$ENV_DIR" 2>/dev/null | wc -l | tr -d ' ')
+                echo "✅ environments: $n in $ENV_DIR"
+            else
+                echo "ℹ️  environments: none yet"
+            fi
+            local rc blocks
+            rc="$HOME/.bashrc"
+            case "$(basename "${SHELL:-bash}")" in zsh) rc="$HOME/.zshrc" ;; esac
+            blocks=$(grep -c ">>> Ikshvaku >>>" "$rc" 2>/dev/null)
+            blocks=${blocks:-0}
+            if [ "$blocks" -eq 1 ]; then
+                echo "✅ shell integration: $rc"
+            elif [ "$blocks" -eq 0 ]; then
+                echo "⚠️  shell integration: not found in $rc — re-run the installer"
+            else
+                echo "❌ shell integration: $blocks blocks in $rc — run ikshvaku-uninstall, then reinstall"
+                ok=0
+            fi
+            if [ -f "$IKSHVAKU_HOME/registry" ]; then
+                local total=0 broken=0 rd re
+                while IFS='|' read -r rd re; do
+                    [ -z "$rd" ] && continue
+                    total=$((total + 1))
+                    if [ ! -d "$ENV_DIR/$re" ]; then
+                        broken=$((broken + 1))
+                        echo "⚠️  broken link: $rd -> '$re' (remove it: cd $rd && ikshvaku unlink)"
+                    fi
+                done < "$IKSHVAKU_HOME/registry"
+                if [ "$broken" -eq 0 ]; then
+                    echo "✅ registry: $total link(s), all valid"
+                else
+                    echo "❌ registry: $broken of $total link(s) broken"
+                    ok=0
+                fi
+            else
+                echo "ℹ️  registry: empty (no projects linked — try: ikshvaku init)"
+            fi
+            if [ -f "$IKSHVAKU_HOME/auto-on" ]; then
+                echo "✅ auto-activation: ON (envs switch on cd)"
+            else
+                echo "ℹ️  auto-activation: off (enable with: ikshvaku auto on)"
+            fi
+            if [ -d "$HOME/.cache/uv" ]; then
+                echo "ℹ️  uv cache: $(du -sh "$HOME/.cache/uv" 2>/dev/null | cut -f1) (prune with: uv cache prune)"
+            fi
+            echo ""
+            if [ "$ok" -eq 1 ]; then
+                echo "All checks passed."
+            else
+                echo "Some checks failed."
+                return 1
+            fi
+            ;;
+
+        auto)
+            case "$2" in
+                on)
+                    mkdir -p "$IKSHVAKU_HOME"
+                    touch "$IKSHVAKU_HOME/auto-on"
+                    ikshvaku_auto_install_hook
+                    echo "Auto-activation ON — cd into a linked project activates its env."
+                    echo "(This session is hooked; other shells pick it up on restart.)"
+                    ;;
+                off)
+                    rm -f "$IKSHVAKU_HOME/auto-on"
+                    echo "Auto-activation OFF."
+                    ;;
+                *)
+                    echo "Usage: ikshvaku auto on|off"
+                    return 1
+                    ;;
+            esac
             ;;
 
         remove)
@@ -172,14 +457,27 @@ ikshvaku() {
             echo "Environment '$2' removed"
             ;;
 
+        --version|version|-V)
+            echo "ikshvaku $IKSHVAKU_VERSION"
+            ;;
+
         *)
+            echo "ikshvaku $IKSHVAKU_VERSION — Python environments powered by uv"
+            echo ""
             echo "Commands:"
             echo "  ikshvaku list"
+            echo "  ikshvaku status"
+            echo "  ikshvaku doctor"
             echo "  ikshvaku create <env> [python-version]"
-            echo "  ikshvaku activate <env>"
+            echo "  ikshvaku init [env] [python-version]   link this directory to an env"
+            echo "  ikshvaku link <env> / unlink"
+            echo "  ikshvaku links"
+            echo "  ikshvaku activate [env]                no arg = this project's env"
             echo "  ikshvaku deactivate"
-            echo "  ikshvaku install <env> <package...>   (or: ikshvaku install <package...> while active)"
+            echo "  ikshvaku install <env> <pkg...>        or: ikshvaku install <pkg...> (active env)"
+            echo "  ikshvaku auto on|off                   switch envs automatically on cd"
             echo "  ikshvaku remove <env>"
+            echo "  ikshvaku --version"
             echo ""
             echo "Powered by uv (downloaded automatically if missing)."
             echo "Environments ship with pip preinstalled (seeded by uv)."

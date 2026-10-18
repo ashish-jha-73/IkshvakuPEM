@@ -3,6 +3,26 @@
 All notable changes to Ikshvaku are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/); versioning follows [SemVer](https://semver.org/).
 
+## [1.1.0] — 2026-10-19
+
+The release that makes Ikshvaku project-aware.
+
+### Added
+- **Project linking** — `ikshvaku init` links the current directory to an
+  environment (creating it if needed) and activates it; `link`/`unlink`
+  manage attachments; `links` lists them all. The registry is plain text at
+  `~/.ikshvaku/registry`.
+- **Bare `ikshvaku activate`** — no argument activates the linked env of the
+  current directory, resolving the nearest parent (git-style).
+- **Auto-activation** — `ikshvaku auto on`: environments switch automatically
+  on `cd`. Opt-in; implemented via PROMPT_COMMAND (bash), `chpwd` (zsh) and a
+  `Set-Location` wrapper (PowerShell).
+- **`ikshvaku status`** — active env, project link, Python version, package
+  count and disk size at a glance.
+- **`ikshvaku doctor`** — health check: installation, uv, shell integration
+  (with duplicate-block detection), broken registry links and uv cache size.
+- **`ikshvaku --version`** — a version constant, finally.
+
 ## [1.0.0] — 2026-10-19
 
 First major release: Ikshvaku is now a cross-platform, uv-powered environment

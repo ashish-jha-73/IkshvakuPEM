@@ -32,6 +32,9 @@ Most Python environment tools are either too heavy (Conda), too complex
 | 🏠 **Centralized** | Every environment lives in one place: `~/.Python-Env` — always findable, always completable |
 | 🐚 **Shell-native** | Not another CLI you have to remember — a shell function with tab completion in bash, zsh, PowerShell and cmd |
 | 🛡 **Self-healing** | `uv` is downloaded automatically if missing, on any platform |
+| 🔗 **Project-aware** | `ikshvaku init` links a directory to an env; bare `activate` works from any subdirectory |
+| 🤖 **Auto-pilot (opt-in)** | `auto on` switches environments as you `cd` |
+| 🩺 **Observable** | `status` and `doctor` show state and diagnose problems |
 | 📦 **Batteries included** | Every env ships with pip preinstalled and Python versions on demand: `ikshvaku create app 3.12` |
 
 No background services. No magic. No lock-in.
@@ -105,19 +108,38 @@ Downloading cpython-3.12.15 (32.7 MiB)
 Environment 'app' created
 ```
 
+Working on a project? Link it — then activation is automatic:
+
+```console
+$ cd myproject
+$ ikshvaku init
+Environment 'myproject' created
+Linked ~/myproject -> 'myproject'
+
+$ cd ~/myproject/src/deep
+$ ikshvaku activate        # no argument: finds the project's env
+```
+
 ---
 
 ## 📖 Commands
 
 | Command | What it does |
 |---|---|
+| `ikshvaku init [env] [python-version]` | Link the current directory to an environment (creates it if needed) and activate it |
+| `ikshvaku link <env>` / `unlink` | Attach / detach this directory to an environment |
+| `ikshvaku links` | Show every project → environment link |
+| `ikshvaku activate [env]` | Activate — with no argument, uses this project's linked env (even from subdirectories) |
+| `ikshvaku auto on\|off` | Opt-in: switch environments automatically as you `cd` |
 | `ikshvaku create <env> [python-version]` | Create an environment (pip included; pin a Python version and uv fetches it) |
-| `ikshvaku activate <env>` | Activate an environment |
 | `ikshvaku deactivate` | Deactivate the active environment |
 | `ikshvaku install <env> <pkg...>` | Install packages into any environment — runs an isolated *activate → install → deactivate* cycle |
 | `ikshvaku install <pkg...>` | Same, targeting the environment you have active |
 | `ikshvaku list` | List environments |
+| `ikshvaku status` | Active env, project link, Python version, package count, disk size |
+| `ikshvaku doctor` | Health check: installation, uv, shell integration, broken links, cache size |
 | `ikshvaku remove <env>` | Delete an environment |
+| `ikshvaku --version` | Print the version |
 | `ikshvaku-uninstall` | Remove Ikshvaku entirely |
 
 All commands support **tab completion** for subcommands and environment names,
@@ -145,6 +167,25 @@ ikshvaku install requests
 The install command runs in an isolated cycle — packages land in the target
 environment, and whatever you have active in your current shell is never
 disturbed.
+
+---
+
+## 🔗 Project linking
+
+Ikshvaku remembers which environment belongs to which project:
+
+```bash
+cd myproject
+ikshvaku init        # creates (if needed), links, activates
+```
+
+- `ikshvaku activate` with no argument uses the linked env — from the project
+  root **or any subdirectory** (nearest parent wins, git-style)
+- `ikshvaku auto on` switches environments automatically as you `cd` — opt-in,
+  supported in bash (PROMPT_COMMAND), zsh (chpwd) and PowerShell (cd wrapper)
+- Links live in plain text at `~/.ikshvaku/registry`
+- `ikshvaku doctor` reports broken links, duplicated shell integrations and
+  uv cache size; `ikshvaku status` shows where you are at a glance
 
 ---
 
@@ -248,6 +289,12 @@ Yes: `ikshvaku create myapp 3.12`. uv downloads it once and shares it.
 **Does it work in cmd?**
 Yes — `activate`/`deactivate` run natively via the `ikshvaku.cmd` shim;
 everything else delegates to PowerShell.
+
+**Is auto-activation safe?**
+It's opt-in (`ikshvaku auto on`) and predictable: on `cd`, Ikshvaku looks up
+the nearest linked project and switches only between linked environments. It
+never touches anything outside linked projects, and `ikshvaku auto off`
+reverts it instantly.
 
 **Does uninstalling remove uv?**
 No — uv is a shared tool other projects may use. Remove it with
