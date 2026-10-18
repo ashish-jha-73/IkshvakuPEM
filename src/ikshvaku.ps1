@@ -772,6 +772,40 @@ function ikshvaku {
         }
 
         'status' {
+            $here = (Get-Location).Path
+            if ($rest[0] -eq '--json') {
+                $linked = Get-IkshvakuRegistryLink $here
+                $via = 'this directory'
+                if (-not $linked) {
+                    $linked = IkshvakuAutoLookup $here
+                    if ($linked) { $via = 'parent directory' }
+                }
+                $show = $env:IKSHVAKU_ACTIVE
+                if (-not $show) { $show = $linked }
+                $py = ''
+                $pkgs = 0
+                $size = ''
+                if ($show -and (Test-Path (Join-Path $global:IkshvakuEnvDir $show) -PathType Container)) {
+                    $envPath = Join-Path $global:IkshvakuEnvDir $show
+                    $pyExe = Get-IkshvakuEnvPython $envPath
+                    if ($pyExe) { $py = (& $pyExe --version 2>&1 | Out-String).Trim() }
+                    if (Get-Command uv -ErrorAction SilentlyContinue) {
+                        $pkgs = (& uv pip list --python $envPath 2>$null | Select-Object -Skip 2 | Measure-Object).Count
+                    }
+                    $sum = (Get-ChildItem -LiteralPath $envPath -Recurse -File -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum
+                    if ($sum) { $size = "$([math]::Round($sum / 1MB, 1)) MB" }
+                }
+                ConvertTo-Json -InputObject ([pscustomobject]@{
+                    version = $global:IkshvakuVersion
+                    active = $env:IKSHVAKU_ACTIVE
+                    linked_env = $linked
+                    linked_via = $via
+                    python = $py
+                    packages = $pkgs
+                    size = $size
+                })
+                return
+            }
             Write-Output "ikshvaku $global:IkshvakuVersion"
             if ($env:IKSHVAKU_ACTIVE) {
                 Write-Output ("Active env:   {0}  ({1})" -f $env:IKSHVAKU_ACTIVE, (Join-Path $global:IkshvakuEnvDir $env:IKSHVAKU_ACTIVE))

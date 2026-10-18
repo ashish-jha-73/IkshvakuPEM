@@ -123,7 +123,8 @@ jobs:
           ikshvaku help cleanup | grep -q "days" || { echo "❌ help"; exit 1; }
           ikshvaku config cleanup_days 45 > /dev/null
           ikshvaku config cleanup_days --unset > /dev/null
-          [ -z "$(ikshvaku config cleanup_days)" ] || { echo "❌ config --unset"; exit 1; }
+          out=$(ikshvaku config cleanup_days)
+          case "$out" in *"is not set"*) echo "✅ config --unset" ;; *) echo "❌ config --unset: $out"; exit 1 ;; esac
           [ "$(ikshvaku prompt)" = "(myproj) " ] || { echo "❌ prompt"; exit 1; }
           echo "✅ tier 4 (bash)"
 
