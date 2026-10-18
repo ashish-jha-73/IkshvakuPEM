@@ -121,6 +121,18 @@ function Remove-IkshvakuRegistryLink {
     Set-Content -LiteralPath $reg -Value $kept
 }
 
+# Nearest registered project directory for a path, walking up.
+function IkshvakuRegistryDir {
+    param([string]$Dir)
+    $d = $Dir
+    while ($true) {
+        if (Get-IkshvakuRegistryLink $d) { return $d }
+        $parent = Split-Path -Parent $d
+        if (-not $parent -or $parent -eq $d) { return $null }
+        $d = $parent
+    }
+}
+
 # Nearest linked env for a directory, walking up (git-style).
 function IkshvakuAutoLookup {
     param([string]$Dir)
@@ -230,11 +242,16 @@ function ikshvaku {
         'unlink' {
             $here = (Get-Location).Path
             if (-not (Get-IkshvakuRegistryLink $here)) {
-                Write-Host 'This directory has no linked environment'
-                return
+                # not linked here — remove the nearest parent's link (git-style)
+                $here = IkshvakuRegistryDir $here
+                if (-not $here) {
+                    Write-Host 'No linked environment found for this directory'
+                    return
+                }
             }
+            $linked = Get-IkshvakuRegistryLink $here
             Remove-IkshvakuRegistryLink $here
-            Write-Host "Unlinked $here" -ForegroundColor Green
+            Write-Host "Unlinked $here (was -> '$linked')" -ForegroundColor Green
         }
 
         'links' {

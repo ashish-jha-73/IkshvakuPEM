@@ -154,6 +154,17 @@ ikshvaku_auto_lookup() {
     done
 }
 
+# Nearest registered project directory for a path, walking up.
+ikshvaku_registry_dir() {
+    local d="$1" e
+    while :; do
+        e=$(ikshvaku_registry_get "$d")
+        [ -n "$e" ] && { printf '%s' "$d"; return 0; }
+        [ "$d" = "/" ] && return 1
+        d=$(dirname "$d")
+    done
+}
+
 # --- auto-activation on cd (opt-in: ikshvaku auto on) ---
 
 ikshvaku_auto_check() {
@@ -240,14 +251,18 @@ ikshvaku() {
             ;;
 
         unlink)
-            local cur
+            local cur linked
             cur=$(pwd -P)
             if [ -z "$(ikshvaku_registry_get "$cur")" ]; then
-                echo "This directory has no linked environment"
-                return 1
+                # not linked here — remove the nearest parent's link (git-style)
+                cur=$(ikshvaku_registry_dir "$cur") || {
+                    echo "No linked environment found for this directory"
+                    return 1
+                }
             fi
+            linked=$(ikshvaku_registry_get "$cur")
             ikshvaku_registry_del "$cur"
-            echo "Unlinked $cur"
+            echo "Unlinked $cur (was -> '$linked')"
             ;;
 
         links)

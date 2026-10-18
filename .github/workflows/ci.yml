@@ -60,7 +60,6 @@ jobs:
       - name: Project linking (init / status / bare activate / doctor)
         run: |
           source ~/.ikshvaku/ikshvaku.sh
-          set -x
           ikshvaku --version
           mkdir -p "$RUNNER_TEMP/myproj/sub"
           cd "$RUNNER_TEMP/myproj"
