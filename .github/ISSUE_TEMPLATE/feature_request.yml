@@ -1,0 +1,26 @@
+name: ✨ Feature request
+description: Suggest an idea or improvement for Ikshvaku
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: A clear description of the workflow that hurts today.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: What would you like to happen?
+      description: Commands you wish existed, output you wish you saw.
+      placeholder: |
+        $ ikshvaku <your idea here>
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you've considered
+    validations:
+      required: false

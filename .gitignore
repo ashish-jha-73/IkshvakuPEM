@@ -1,0 +1,16 @@
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editors
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# Python artifacts (from local testing)
+__pycache__/
+*.pyc
+.venv/
+venv/

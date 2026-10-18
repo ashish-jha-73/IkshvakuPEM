@@ -1,0 +1,33 @@
+<svg width="1280" height="640" viewBox="0 0 1280 640" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0d1117"/>
+      <stop offset="1" stop-color="#16202e"/>
+    </linearGradient>
+    <linearGradient id="bolt" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fde047"/>
+      <stop offset="1" stop-color="#f59e0b"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1280" height="640" fill="url(#bg)"/>
+  <rect width="1280" height="6" fill="url(#bolt)"/>
+
+  <!-- lightning bolt mark -->
+  <polygon points="160,138 118,258 148,258 134,316 198,232 164,232" fill="url(#bolt)"/>
+
+  <text x="228" y="272" font-family="DejaVu Sans" font-size="118" font-weight="bold" fill="#ffffff">Ikshvaku</text>
+  <text x="100" y="376" font-family="DejaVu Sans" font-size="40" fill="#8b949e">Python environments in milliseconds — powered by uv</text>
+
+  <!-- chips -->
+  <rect x="100" y="428" width="352" height="56" rx="28" fill="#161b22" stroke="#30363d"/>
+  <text x="276" y="465" text-anchor="middle" font-family="DejaVu Sans" font-size="26" fill="#c9d1d9">Linux · macOS · Windows</text>
+
+  <rect x="482" y="428" width="330" height="56" rx="28" fill="#161b22" stroke="#30363d"/>
+  <text x="647" y="465" text-anchor="middle" font-family="DejaVu Sans" font-size="26" fill="#c9d1d9">bash · zsh · PowerShell</text>
+
+  <rect x="842" y="428" width="222" height="56" rx="28" fill="#161b22" stroke="#30363d"/>
+  <text x="953" y="465" text-anchor="middle" font-family="DejaVu Sans" font-size="26" fill="#c9d1d9">Powered by uv</text>
+
+  <text x="100" y="588" font-family="DejaVu Sans" font-size="24" fill="#30363d">github.com/ashish-jha-73/IkshvakuPEM</text>
+</svg>

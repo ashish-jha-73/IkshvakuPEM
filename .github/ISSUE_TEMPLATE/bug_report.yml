@@ -1,0 +1,55 @@
+name: 🐛 Bug report
+description: Something broke — tell us what, where and how
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Include the exact command you ran and the full output.
+      placeholder: |
+        $ ikshvaku create myenv
+        ...error output here...
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Where are you running Ikshvaku?
+      options:
+        - Linux
+        - macOS
+        - Windows — PowerShell
+        - Windows — cmd
+        - Windows — WSL
+        - Windows — Git Bash
+    validations:
+      required: true
+  - type: dropdown
+    id: shell
+    attributes:
+      label: Which shell?
+      options:
+        - bash
+        - zsh
+        - PowerShell 5
+        - PowerShell 7
+        - cmd
+        - Git Bash
+    validations:
+      required: true
+  - type: input
+    id: uv-version
+    attributes:
+      label: uv version
+      description: Output of `uv --version`
+      placeholder: uv 0.13.1
+    validations:
+      required: false
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else?
+      description: Python version, how you installed Ikshvaku, what you already tried.
+    validations:
+      required: false
