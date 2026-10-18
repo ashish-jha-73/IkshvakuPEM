@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 # Ikshvaku installer for Windows (PowerShell 5.1+ and PowerShell 7).
 # Run from the repository root:  .\install.ps1
 

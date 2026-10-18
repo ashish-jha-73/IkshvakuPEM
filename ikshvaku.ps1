@@ -1,4 +1,4 @@
-# ~/.ikshvaku/ikshvaku.ps1 — Ikshvaku for PowerShell and Windows cmd.
+﻿# ~/.ikshvaku/ikshvaku.ps1 — Ikshvaku for PowerShell and Windows cmd.
 # Dot-sourced (from $PROFILE): defines the ikshvaku function.
 # Run as a script (from the ikshvaku.cmd shim): dispatches ikshvaku directly.
 

@@ -65,7 +65,7 @@ jobs:
           cd "$RUNNER_TEMP/myproj"
           ikshvaku init > /dev/null 2>&1
           [ "$VIRTUAL_ENV" = "$HOME/.Python-Env/myproj" ] || { echo "❌ init did not activate"; exit 1; }
-          ikshvaku status | grep -q "Active env:" || { echo "❌ status failed"; exit 1; }
+          ikshvaku status | grep "Active env:" > /dev/null || { echo "❌ status failed"; exit 1; }
           ikshvaku deactivate
           cd "$RUNNER_TEMP/myproj/sub"
           ikshvaku activate
