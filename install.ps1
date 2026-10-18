@@ -1,6 +1,12 @@
-﻿#Requires -Version 5.1
 # Ikshvaku installer for Windows (PowerShell 5.1+ and PowerShell 7).
 # Run from the repository root:  .\install.ps1
+# NOTE: no BOM on this file — it is executed via `irm | iex` by the one-liner,
+# where a BOM would break Invoke-Expression. Avoid file-only directives
+# (#Requires); use runtime checks instead.
+if ($PSVersionTable.PSVersion.Major -lt 5) {
+    Write-Host '❌ Ikshvaku requires PowerShell 5.1 or newer' -ForegroundColor Red
+    exit 1
+}
 
 $ErrorActionPreference = 'Stop'
 try {
