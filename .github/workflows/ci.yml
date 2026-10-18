@@ -290,6 +290,12 @@ jobs:
           . "$env:USERPROFILE\.ikshvaku\ikshvaku.ps1"
           if (((ikshvaku --version | Out-String).Trim()) -ne 'ikshvaku 1.2.0') { throw '❌ pinned install' }
           Write-Host '✅ pinned to 1.2.0'
+          # restore the latest payload — later steps in this job depend on it
+          $env:IKSHVAKU_VERSION = ''
+          ./install.ps1 | Out-Null
+          . "$env:USERPROFILE\.ikshvaku\ikshvaku.ps1"
+          if (((ikshvaku --version | Out-String).Trim()) -eq 'ikshvaku 1.2.0') { throw '❌ restore latest failed' }
+          Write-Host '✅ latest restored'
 
       - name: Smoke test (PowerShell 7)
         shell: pwsh
@@ -376,6 +382,12 @@ jobs:
           . "$env:USERPROFILE\.ikshvaku\ikshvaku.ps1"
           if (((ikshvaku --version | Out-String).Trim()) -ne 'ikshvaku 1.2.0') { throw '❌ pinned install' }
           Write-Host '✅ pinned to 1.2.0'
+          # restore the latest payload — later steps in this job depend on it
+          $env:IKSHVAKU_VERSION = ''
+          ./install.ps1 | Out-Null
+          . "$env:USERPROFILE\.ikshvaku\ikshvaku.ps1"
+          if (((ikshvaku --version | Out-String).Trim()) -eq 'ikshvaku 1.2.0') { throw '❌ restore latest failed' }
+          Write-Host '✅ latest restored'
 
       - name: Smoke test (cmd shim)
         shell: cmd

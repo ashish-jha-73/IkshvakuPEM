@@ -363,7 +363,9 @@ function ikshvaku --description "Ikshvaku Python environment manager (powered by
             set -l cmd_args $argv[3..-1]
             __ikshvaku_touch_usage "$argv[2]"
             source "$act"
-            eval $cmd_args
+            set -l exe $cmd_args[1]
+            set -l rest $cmd_args[2..-1]
+            $exe $rest
             set -l rc $status
             deactivate >/dev/null 2>&1
             return $rc
