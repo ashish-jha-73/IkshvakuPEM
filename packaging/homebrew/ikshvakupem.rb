@@ -25,7 +25,7 @@ class IkshvakuPEM < Formula
 
   test do
     ENV["HOME"] = testpath
-    assert_match "ikshvaku 1.4.0",
+    assert_match /ikshvaku \d+\.\d+\.\d+/,
       shell_output("source #{share}/ikshvaku/ikshvaku.sh && ikshvaku --version")
   end
 end

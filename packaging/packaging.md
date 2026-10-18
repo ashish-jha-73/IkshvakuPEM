@@ -14,6 +14,10 @@ brew tap ashish-jha-73/ikshvakupem https://github.com/ashish-jha-73/homebrew-iks
 brew install ikshvakupem
 ```
 
+**The tap is self-updating:** a scheduled workflow in the tap repository
+checks for new IkshvakuPEM releases every 6 hours and updates the formula
+(version, url, sha256) automatically — no manual bumping per release.
+
 To bump the formula for a new release: update `version`, `url` and `sha256`
 (`sha256sum` of the release tarball) in the tap's formula and push.
 
