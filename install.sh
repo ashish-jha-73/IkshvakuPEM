@@ -64,22 +64,33 @@ if [ -z "$PAYLOAD_DIR" ]; then
       exit 1
     }
   done
+  # optional files (new in 1.4; older tags don't have them)
+  for f in completion.zsh ikshvaku.fish; do
+    ikshvaku_fetch "$f" 2>/dev/null || rm -f "$PAYLOAD_DIR/$f"
+  done
 fi
 
 OS_NAME="$(uname -s)"                       # Linux / Darwin / MINGW*_NT-* (Git Bash) / ...
 SHELL_NAME="$(basename "${SHELL:-bash}")"   # bash / zsh / ...
 
-if [ "$SHELL_NAME" = "zsh" ]; then
-  RC_FILE="$HOME/.zshrc"
-else
-  RC_FILE="$HOME/.bashrc"
-fi
+case "$SHELL_NAME" in
+  zsh)
+    RC_FILE="$HOME/.zshrc"
+    ;;
+  fish)
+    RC_FILE="$HOME/.config/fish/config.fish"
+    mkdir -p "$HOME/.config/fish"
+    ;;
+  *)
+    RC_FILE="$HOME/.bashrc"
+    ;;
+esac
 
 INSTALL_DIR="$HOME/.ikshvaku"
 BIN_DIR="$HOME/.local/bin"
 ENV_DIR="$HOME/.Python-Env"
 UV_INSTALLER="https://astral.sh/uv/install.sh"
-IKSHVAKU_VERSION="1.3.0"
+IKSHVAKU_VERSION="1.4.0"
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -126,19 +137,30 @@ mkdir -p "$INSTALL_DIR" "$BIN_DIR" "$ENV_DIR"
 touch "$RC_FILE"
 
 cp -f "$PAYLOAD_DIR/ikshvaku.sh" "$PAYLOAD_DIR/completion.sh" "$PAYLOAD_DIR/uninstall.sh" "$INSTALL_DIR/"
+for f in completion.zsh ikshvaku.fish; do
+  [ -f "$PAYLOAD_DIR/$f" ] && cp -f "$PAYLOAD_DIR/$f" "$INSTALL_DIR/"
+done
 chmod +x "$INSTALL_DIR"/*.sh
 
 ln -sf "$INSTALL_DIR/uninstall.sh" "$BIN_DIR/ikshvaku-uninstall"
 
-if ! grep -q "ikshvaku/ikshvaku.sh" "$RC_FILE"; then
+if ! grep -q ">>> Ikshvaku >>>" "$RC_FILE"; then
   {
     printf '\n# >>> Ikshvaku >>>\n'
-    if [ "$SHELL_NAME" = "zsh" ] && ! grep -q 'bashcompinit' "$RC_FILE" 2>/dev/null; then
-      # zsh needs a shim to understand bash-style completion scripts
-      printf 'autoload -U +X bashcompinit && bashcompinit\n'
+    if [ "$SHELL_NAME" = "fish" ]; then
+      printf 'source ~/.ikshvaku/ikshvaku.fish\n'
+    elif [ "$SHELL_NAME" = "zsh" ]; then
+      printf 'if [ -f "$HOME/.ikshvaku/completion.zsh" ]; then\n'
+      printf '  source "$HOME/.ikshvaku/completion.zsh"\n'
+      printf 'elif [ -f "$HOME/.ikshvaku/completion.sh" ]; then\n'
+      printf '  autoload -U +X bashcompinit && bashcompinit\n'
+      printf '  source "$HOME/.ikshvaku/completion.sh"\n'
+      printf 'fi\n'
+      printf 'source ~/.ikshvaku/ikshvaku.sh\n'
+    else
+      printf 'source ~/.ikshvaku/ikshvaku.sh\n'
+      printf 'source ~/.ikshvaku/completion.sh\n'
     fi
-    printf 'source ~/.ikshvaku/ikshvaku.sh\n'
-    printf 'source ~/.ikshvaku/completion.sh\n'
     printf '# <<< Ikshvaku <<<\n'
   } >> "$RC_FILE"
 fi

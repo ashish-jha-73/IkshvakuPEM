@@ -17,7 +17,7 @@ $InstallDir  = Join-Path $env:USERPROFILE '.ikshvaku'
 $BinDir      = Join-Path $env:USERPROFILE '.local\bin'
 $EnvDir      = Join-Path $env:USERPROFILE '.Python-Env'
 $UvInstaller = 'https://astral.sh/uv/install.ps1'
-$IkshvakuVersion = '1.3.0'
+$IkshvakuVersion = '1.4.0'
 
 # Optional version pin: set IKSHVAKU_VERSION before invoking the installer
 # (e.g. $env:IKSHVAKU_VERSION = 'v1.2.0') to install the payload from that tag.

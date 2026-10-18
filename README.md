@@ -36,7 +36,9 @@ Most Python environment tools are either too heavy (Conda), too complex
 | 🤖 **Auto-pilot (opt-in)** | `auto on` switches environments as you `cd` |
 | 🩺 **Observable** | `status` and `doctor` show state and diagnose problems |
 | 🧹 **Self-cleaning** | `cleanup` finds and removes stale environments; `list --size` shows what disk each env costs |
-| ⌨️ **Scriptable** | `run`, `export`, `clone` — use environments from scripts and CI without touching your shell |
+| ⌨️ **Scriptable** | `run`, `export`, `clone`, `--json` output — use environments from scripts and CI without touching your shell |
+| 🐚 **Every shell** | bash, zsh (native completion), Fish, PowerShell, cmd |
+| 📓 **Jupyter-ready** | `ikshvaku jupyter <env>` registers any env as a kernel |
 | 📦 **Batteries included** | Every env ships with pip preinstalled and Python versions on demand: `ikshvaku create app 3.12` |
 | ⬆️ **Self-updating** | `ikshvaku upgrade` moves you to the latest release |
 
@@ -306,6 +308,7 @@ returns your shell to exactly how it was.
 |---|---|---|
 | Linux | ✅ Supported | bash (zsh supported too) |
 | macOS | ✅ Supported | bash & zsh (default) |
+| Fish (Linux & macOS) | ✅ Supported | fish function + completion |
 | Windows — WSL | ✅ Supported | bash |
 | Windows — Git Bash | ✅ Supported | bash |
 | Windows — PowerShell 5 & 7 | ✅ Supported | function + tab completion |
@@ -390,7 +393,7 @@ No — uv is a shared tool other projects may use. Remove it with
 - [x] Disk-space tooling (`list --size`, `cleanup`, cache pruning)
 - [x] `ikshvaku upgrade` — self-update
 - [x] Homebrew tap + GitHub Action
-- [ ] Fish support
+- [x] Fish support
 - [ ] Documentation site
 
 ---

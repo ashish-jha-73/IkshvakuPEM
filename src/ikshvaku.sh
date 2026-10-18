@@ -1,7 +1,7 @@
 # ~/.ikshvaku/ikshvaku.sh
 # shellcheck shell=bash
 
-IKSHVAKU_VERSION="1.3.0"
+IKSHVAKU_VERSION="1.4.0"
 IKSHVAKU_UV_INSTALLER="https://astral.sh/uv/install.sh"
 IKSHVAKU_ENV_DIR="${IKSHVAKU_ENV_DIR:-$HOME/.Python-Env}"
 IKSHVAKU_HOME="${IKSHVAKU_HOME:-$HOME/.ikshvaku}"
@@ -158,6 +158,17 @@ ikshvaku_config_set() {
     } > "$IKSHVAKU_HOME/config.tmp" && mv "$IKSHVAKU_HOME/config.tmp" "$IKSHVAKU_HOME/config"
 }
 
+ikshvaku_config_del() {
+    [ -f "$IKSHVAKU_HOME/config" ] || return 0
+    awk -F= -v k="$1" 'NF >= 2 && $1 != k' "$IKSHVAKU_HOME/config" \
+        > "$IKSHVAKU_HOME/config.tmp" \
+        && mv "$IKSHVAKU_HOME/config.tmp" "$IKSHVAKU_HOME/config"
+}
+
+ikshvaku_json_escape() {
+    printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
 # Is an environment linked to any project? (exact match on the env field)
 ikshvaku_registry_env_linked() {
     [ -f "$IKSHVAKU_HOME/registry" ] || return 1
@@ -255,6 +266,20 @@ ikshvaku() {
                 echo "No environments yet. Create one: ikshvaku create <env>"
                 return 0
             fi
+            if [ "$2" = "--json" ]; then
+                local jn jsz first=1
+                printf '['
+                for ld in "$ENV_DIR"/*/; do
+                    jn=$(ikshvaku_json_escape "$(basename "$ld")")
+                    jsz=$(du -sh "$ld" 2>/dev/null | cut -f1)
+                    [ $first -eq 1 ] || printf ','
+                    first=0
+                    printf '{"name":"%s","size":"%s","last_used":"%s"}' \
+                        "$jn" "$jsz" "$(ikshvaku_usage_last_used "$(basename "$ld")")"
+                done
+                printf ']\n'
+                return 0
+            fi
             if [ "$2" = "--size" ]; then
                 local ld le lsz
                 printf '%-18s %8s  %s\n' "ENV" "SIZE" "LAST USED"
@@ -297,11 +322,17 @@ ikshvaku() {
             fi
             ikshvaku_registry_set "$dir" "$name"
             echo "Linked $dir -> '$name'"
-            # bootstrap: install dependencies if the project ships a requirements.txt
-            if [ -f "requirements.txt" ] && [ -d "$ENV_DIR/$name" ]; then
+            # bootstrap: install dependencies from requirements.txt or pyproject.toml
+            local depfile=""
+            if [ -f "requirements.txt" ]; then
+                depfile="requirements.txt"
+            elif [ -f "pyproject.toml" ]; then
+                depfile="pyproject.toml"
+            fi
+            if [ -n "$depfile" ] && [ -d "$ENV_DIR/$name" ]; then
                 if command -v uv >/dev/null 2>&1 || ikshvaku_uv_install; then
-                    echo "Found requirements.txt — installing dependencies..."
-                    uv pip install --python "$(ikshvaku_env_python "$ENV_DIR/$name")" -r requirements.txt \
+                    echo "Found $depfile — installing dependencies..."
+                    uv pip install --python "$(ikshvaku_env_python "$ENV_DIR/$name")" -r "$depfile" \
                         || echo "⚠️  dependency installation failed — the env is still usable"
                 fi
             fi
@@ -334,6 +365,19 @@ ikshvaku() {
         links)
             if [ ! -s "$IKSHVAKU_HOME/registry" ]; then
                 echo "No projects linked yet. Run: ikshvaku init"
+                return 0
+            fi
+            if [ "$2" = "--json" ]; then
+                local jn je first=1
+                printf '['
+                while IFS='|' read -r jn je; do
+                    [ -z "$jn" ] && continue
+                    [ $first -eq 1 ] || printf ','
+                    first=0
+                    printf '{"dir":"%s","env":"%s"}' \
+                        "$(ikshvaku_json_escape "$jn")" "$(ikshvaku_json_escape "$je")"
+                done < "$IKSHVAKU_HOME/registry"
+                printf ']\n'
                 return 0
             fi
             local ld le
@@ -489,61 +533,89 @@ ikshvaku() {
                 esac
                 shift
             done
-            local now cutoff d e lastf last_epoch stamp total=0 stale=0
+            # concurrency lock (portable mkdir lock)
+            if ! mkdir "$IKSHVAKU_HOME/cleanup.lock" 2>/dev/null; then
+                echo "⚠️  another cleanup appears to be running — try again later"
+                return 1
+            fi
+            local now cutoff d e lastf last_epoch stamp total=0 dupcount=0
             now=$(date +%s)
             cutoff=$((now - days * 86400))
             echo "ikshvaku cleanup — stale = unused for $days days (linked projects and the active env are always kept)"
             echo ""
-            for d in "$ENV_DIR"/*/; do
-                [ -d "$d" ] || continue
-                e=$(basename "$d")
-                total=$((total + 1))
-                if ikshvaku_registry_env_linked "$e"; then
-                    printf '  keep      %-18s linked to a project\n' "$e"
-                    continue
-                fi
-                if [ "$e" = "${IKSHVAKU_ACTIVE:-}" ]; then
-                    printf '  keep      %-18s currently active\n' "$e"
-                    continue
-                fi
-                lastf="$IKSHVAKU_HOME/state/usage/$e"
-                if [ -f "$lastf" ]; then
-                    last_epoch=$(awk '{ print $1 }' "$lastf" 2>/dev/null)
-                    stamp=$(awk '{ print $2 }' "$lastf" 2>/dev/null)
-                else
-                    last_epoch=""
-                    stamp="never"
-                fi
-                if [ -z "$last_epoch" ]; then
-                    printf '  skip      %-18s no usage data (created before v1.2)\n' "$e"
-                elif [ "$last_epoch" -le "$cutoff" ]; then
-                    stale=$((stale + 1))
-                    if [ "$apply" -eq 1 ]; then
-                        rm -rf "${ENV_DIR:?}/$e"
-                        rm -f "$IKSHVAKU_HOME/state/usage/$e"
-                        printf '  DELETE    %-18s last used %s\n' "$e" "$stamp"
-                    else
-                        printf '  stale     %-18s last used %s\n' "$e" "$stamp"
+            # run the body in a subshell so the lock is always released, even on error
+            (
+                local step_total=0 step_stale=0 seen="" h
+                for d in "$ENV_DIR"/*/; do
+                    [ -d "$d" ] || continue
+                    e=$(basename "$d")
+                    step_total=$((step_total + 1))
+                    if ikshvaku_registry_env_linked "$e"; then
+                        printf '  keep      %-18s linked to a project\n' "$e"
+                        continue
                     fi
+                    if [ "$e" = "${IKSHVAKU_ACTIVE:-}" ]; then
+                        printf '  keep      %-18s currently active\n' "$e"
+                        continue
+                    fi
+                    lastf="$IKSHVAKU_HOME/state/usage/$e"
+                    if [ -f "$lastf" ]; then
+                        last_epoch=$(awk '{ print $1 }' "$lastf" 2>/dev/null)
+                        stamp=$(awk '{ print $2 }' "$lastf" 2>/dev/null)
+                    else
+                        last_epoch=""
+                        stamp="never"
+                    fi
+                    if [ -z "$last_epoch" ]; then
+                        printf '  skip      %-18s no usage data (created before v1.2)\n' "$e"
+                    elif [ "$last_epoch" -le "$cutoff" ]; then
+                        step_stale=$((step_stale + 1))
+                        if [ "$apply" -eq 1 ]; then
+                            rm -rf "${ENV_DIR:?}/$e"
+                            rm -f "$IKSHVAKU_HOME/state/usage/$e"
+                            printf '  DELETE    %-18s last used %s\n' "$e" "$stamp"
+                        else
+                            printf '  stale     %-18s last used %s\n' "$e" "$stamp"
+                        fi
+                    elif command -v uv >/dev/null 2>&1; then
+                        # duplicate detection: identical package sets are redundant
+                        h=$(uv pip freeze --python "$ENV_DIR/$e" 2>/dev/null | cksum | cut -d' ' -f1)
+                        case " $seen " in
+                            *" $h "*)
+                                dupcount=$((dupcount + 1))
+                                printf '  duplicate %-18s identical package set — remove with: ikshvaku remove %s\n' "$e" "$e"
+                                ;;
+                            *)
+                                seen="$seen $h"
+                                printf '  keep      %-18s last used %s\n' "$e" "$stamp"
+                                ;;
+                        esac
+                    else
+                        printf '  keep      %-18s last used %s\n' "$e" "$stamp"
+                    fi
+                done
+                echo ""
+                if [ "$step_stale" -eq 0 ] && [ "$dupcount" -eq 0 ]; then
+                    echo "Nothing to clean ($step_total environment(s) checked)."
+                elif [ "$apply" -eq 1 ]; then
+                    echo "Deleted $step_stale environment(s)."
                 else
-                    printf '  keep      %-18s last used %s\n' "$e" "$stamp"
+                    echo "Dry run: $step_stale environment(s) would be deleted. Re-run with --apply."
                 fi
-            done
-            echo ""
-            if [ "$stale" -eq 0 ]; then
-                echo "Nothing to clean ($total environment(s) checked)."
-            elif [ "$apply" -eq 1 ]; then
-                echo "Deleted $stale environment(s)."
-            else
-                echo "Dry run: $stale environment(s) would be deleted. Re-run with --apply."
-            fi
-            if [ "$do_cache" -eq 1 ]; then
-                if command -v uv >/dev/null 2>&1; then
-                    uv cache prune
-                else
-                    echo "⚠️  uv not found — cannot prune the cache"
+                if [ "$dupcount" -gt 0 ]; then
+                    echo "$dupcount duplicate environment(s) found (identical package sets)."
                 fi
-            fi
+                if [ "$do_cache" -eq 1 ]; then
+                    if command -v uv >/dev/null 2>&1; then
+                        uv cache prune
+                    else
+                        echo "⚠️  uv not found — cannot prune the cache"
+                    fi
+                fi
+            )
+            local crc=$?
+            rmdir "$IKSHVAKU_HOME/cleanup.lock" 2>/dev/null
+            return "$crc"
             ;;
 
         config)
@@ -555,6 +627,18 @@ ikshvaku() {
                     echo "No configuration set."
                 fi
                 echo "Available keys: python_default, cleanup_days"
+                return 0
+            fi
+            case "$2" in
+                python_default|cleanup_days) ;;
+                *)
+                    echo "Unknown key '$2'. Available keys: python_default, cleanup_days"
+                    return 1
+                    ;;
+            esac
+            if [ "$3" = "--unset" ]; then
+                ikshvaku_config_del "$2"
+                echo "Unset: $2"
                 return 0
             fi
             local cfgv
@@ -572,6 +656,39 @@ ikshvaku() {
             ;;
 
         status)
+            if [ "$2" = "--json" ]; then
+                local s_linked s_via s_show s_py s_count s_size
+                here=$(pwd -P)
+                s_linked=$(ikshvaku_registry_get "$here" || true)
+                s_via="this directory"
+                if [ -z "$s_linked" ]; then
+                    s_linked=$(ikshvaku_auto_lookup "$here" || true)
+                    [ -n "$s_linked" ] && s_via="parent directory"
+                fi
+                s_show="${IKSHVAKU_ACTIVE:-}"
+                [ -z "$s_show" ] && s_show="$s_linked"
+                s_py=""
+                s_count=0
+                s_size=""
+                if [ -n "$s_show" ] && [ -d "$ENV_DIR/$s_show" ]; then
+                    if s_py_path=$(ikshvaku_env_python "$ENV_DIR/$s_show"); then
+                        s_py=$("$s_py_path" --version 2>&1)
+                    fi
+                    if command -v uv >/dev/null 2>&1; then
+                        s_count=$(uv pip list --python "$ENV_DIR/$s_show" 2>/dev/null | awk 'NR>2' | wc -l | tr -d ' ')
+                    fi
+                    s_size=$(du -sh "$ENV_DIR/$s_show" 2>/dev/null | cut -f1)
+                fi
+                printf '{"version":"%s","active":"%s","linked_env":"%s","linked_via":"%s","python":"%s","packages":%s,"size":"%s"}\n' \
+                    "$IKSHVAKU_VERSION" \
+                    "$(ikshvaku_json_escape "${IKSHVAKU_ACTIVE:-}")" \
+                    "$(ikshvaku_json_escape "${s_linked:-}")" \
+                    "$(ikshvaku_json_escape "$s_via")" \
+                    "$(ikshvaku_json_escape "$s_py")" \
+                    "${s_count:-0}" \
+                    "$(ikshvaku_json_escape "$s_size")"
+                return 0
+            fi
             echo "ikshvaku $IKSHVAKU_VERSION"
             if [ -n "${IKSHVAKU_ACTIVE:-}" ]; then
                 echo "Active env:   $IKSHVAKU_ACTIVE  ($ENV_DIR/$IKSHVAKU_ACTIVE)"
@@ -709,6 +826,121 @@ ikshvaku() {
             echo "Environment '$2' removed"
             ;;
 
+        prompt)
+            # For PS1:  PS1='$(ikshvaku prompt)'"$PS1"   (single quotes — evaluates per prompt)
+            # PowerShell shows the environment via Activate.ps1 automatically.
+            [ -n "${IKSHVAKU_ACTIVE:-}" ] && printf '(%s) ' "$IKSHVAKU_ACTIVE"
+            ;;
+
+        jupyter)
+            [ -z "$2" ] && { echo "Usage: ikshvaku jupyter <env>"; return 1; }
+            [ ! -d "$ENV_DIR/$2" ] && { echo "Env not found: $2"; return 1; }
+            ikshvaku_uv_install || return 1
+            local jpy
+            jpy=$(ikshvaku_env_python "$ENV_DIR/$2") || {
+                echo "Env '$2' is missing its python"
+                return 1
+            }
+            if ! "$jpy" -c "import ipykernel" >/dev/null 2>&1; then
+                echo "Installing ipykernel into '$2'..."
+                uv pip install --python "$jpy" ipykernel || {
+                    echo "⚠️  could not install ipykernel"
+                    return 1
+                }
+            fi
+            "$jpy" -m ipykernel install --user --name "ikshvaku-$2" --display-name "Python (ikshvaku: $2)" || return 1
+            echo "Kernel registered — select 'Python (ikshvaku: $2)' in Jupyter."
+            ;;
+
+        help)
+            case "$2" in
+                create)
+                    echo "ikshvaku create <env> [python-version]"
+                    echo "  Create a seeded environment (real pip included)."
+                    echo "  A python version is downloaded on demand: ikshvaku create web 3.12"
+                    ;;
+                init)
+                    echo "ikshvaku init [env] [python-version]"
+                    echo "  Link the current directory to an environment, creating it if needed."
+                    echo "  Installs requirements.txt / pyproject.toml dependencies when present."
+                    ;;
+                activate)
+                    echo "ikshvaku activate [env]"
+                    echo "  Activate an environment. With no argument, uses this project's"
+                    echo "  linked env (nearest parent directory)."
+                    ;;
+                install)
+                    echo "ikshvaku install <env> <pkg...>   |   ikshvaku install <pkg...>"
+                    echo "  Install packages into an environment (isolated cycle), or into the"
+                    echo "  active environment when no env is named."
+                    ;;
+                run)
+                    echo "ikshvaku run <env> <cmd...>"
+                    echo "  Run a command inside an environment without activating."
+                    echo "  Exit codes propagate: ikshvaku run web pytest -q"
+                    ;;
+                export)
+                    echo "ikshvaku export <env>"
+                    echo "  Print installed packages. Redirect: ikshvaku export web > requirements.txt"
+                    ;;
+                clone)
+                    echo "ikshvaku clone <src> <dst>"
+                    echo "  Duplicate an environment (same interpreter, packages included)."
+                    ;;
+                cleanup)
+                    echo "ikshvaku cleanup [--days N] [--apply] [--cache]"
+                    echo "  Find environments unused for N days (default 90). Dry-run by default;"
+                    echo "  --apply deletes; --cache also prunes uv's cache. Linked projects and"
+                    echo "  the active env are always kept."
+                    ;;
+                config)
+                    echo "ikshvaku config [key [value]] | ikshvaku config <key> --unset"
+                    echo "  Keys: python_default (used by create/init), cleanup_days (default 90)."
+                    ;;
+                jupyter)
+                    echo "ikshvaku jupyter <env>"
+                    echo "  Register the environment as a Jupyter kernel."
+                    ;;
+                doctor)
+                    echo "ikshvaku doctor"
+                    echo "  Health check: installation, uv, shell integration, registry links,"
+                    echo "  auto-activation state and uv cache size. Exit code is 0 when healthy."
+                    ;;
+                list)
+                    echo "ikshvaku list [--size | --json]"
+                    echo "  List environments; --size adds disk usage and last-used; --json emits JSON."
+                    ;;
+                status)
+                    echo "ikshvaku status [--json]"
+                    echo "  Show the active env, project link, python version, package count, size."
+                    ;;
+                prompt)
+                    echo "ikshvaku prompt"
+                    echo "  Print a '(env) ' prefix for PS1: PS1='\\$(ikshvaku prompt)'\"\\\$PS1\""
+                    ;;
+                auto)
+                    echo "ikshvaku auto on|off"
+                    echo "  Opt-in: switch environments automatically as you cd."
+                    ;;
+                remove|link|unlink|links)
+                    echo "ikshvaku $2 <env>   (links takes no argument; use ikshvaku help links)"
+                    ;;
+                upgrade)
+                    echo "ikshvaku upgrade"
+                    echo "  Update Ikshvaku to the latest release. Homebrew users: brew upgrade ikshvaku"
+                    ;;
+                "")
+                    echo "Usage: ikshvaku help <command>"
+                    echo "Commands: list create activate deactivate install remove init link unlink"
+                    echo "          links status doctor auto run export clone cleanup config jupyter prompt upgrade help"
+                    ;;
+                *)
+                    echo "No help for '$2'"
+                    return 1
+                    ;;
+            esac
+            ;;
+
         upgrade)
             echo "ikshvaku $IKSHVAKU_VERSION — upgrading to the latest release..."
             local ik_url="${IKSHVAKU_REPO_RAW:-https://raw.githubusercontent.com/ashish-jha-73/IkshvakuPEM/main}/install.sh"
@@ -749,6 +981,9 @@ ikshvaku() {
             echo "  ikshvaku clone <src> <dst>             duplicate an environment"
             echo "  ikshvaku cleanup [--days N] [--apply] [--cache]"
             echo "  ikshvaku config [key [value]]          python_default, cleanup_days"
+            echo "  ikshvaku jupyter <env>                 register env as a Jupyter kernel"
+            echo "  ikshvaku prompt                        '(env) ' prefix for your PS1"
+            echo "  ikshvaku help <command>                detailed help for a command"
             echo "  ikshvaku auto on|off                   switch envs automatically on cd"
             echo "  ikshvaku upgrade                       update to the latest release"
             echo "  ikshvaku remove <env>"

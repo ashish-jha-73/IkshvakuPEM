@@ -19,7 +19,7 @@ ikshvaku_sed_inplace() {
   fi
 }
 
-for RC_FILE in "$HOME/.bashrc" "$HOME/.zshrc"; do
+for RC_FILE in "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.config/fish/config.fish"; do
   if [ -f "$RC_FILE" ]; then
     # Remove the marker-delimited block written by recent installers
     ikshvaku_sed_inplace '/^# >>> Ikshvaku >>>$/,/^# <<< Ikshvaku <<<$/d' "$RC_FILE"

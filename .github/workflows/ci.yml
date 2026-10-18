@@ -112,6 +112,44 @@ jobs:
           [ -n "$ok" ] || { echo "❌ upgrade failed"; exit 1; }
           echo "✅ upgrade ran"
 
+      - name: Tier 4 (json / help / config / prompt)
+        run: |
+          source ~/.ikshvaku/ikshvaku.sh
+          cd "$RUNNER_TEMP/myproj"
+          ikshvaku activate myproj > /dev/null 2>&1 || ikshvaku init myproj > /dev/null 2>&1
+          ikshvaku list --json | python3 -c "import json,sys; d=json.load(sys.stdin); assert isinstance(d, list)" || { echo "❌ list --json"; exit 1; }
+          ikshvaku status --json | python3 -c "import json,sys; d=json.load(sys.stdin); assert 'version' in d and 'active' in d" || { echo "❌ status --json"; exit 1; }
+          ikshvaku links --json | python3 -c "import json,sys; d=json.load(sys.stdin); assert isinstance(d, list)" || { echo "❌ links --json"; exit 1; }
+          ikshvaku help cleanup | grep -q "days" || { echo "❌ help"; exit 1; }
+          ikshvaku config cleanup_days 45 > /dev/null
+          ikshvaku config cleanup_days --unset > /dev/null
+          [ -z "$(ikshvaku config cleanup_days)" ] || { echo "❌ config --unset"; exit 1; }
+          [ "$(ikshvaku prompt)" = "(myproj) " ] || { echo "❌ prompt"; exit 1; }
+          echo "✅ tier 4 (bash)"
+
+      - name: Fish smoke test
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq fish
+          fish -c '
+            source ~/.ikshvaku/ikshvaku.fish
+            ikshvaku --version
+            or exit 1
+            mkdir -p ~/fishproj
+            cd ~/fishproj
+            ikshvaku init fenv
+            or exit 1
+            set -q IKSHVAKU_ACTIVE
+            or exit 1
+            ikshvaku install fenv idna
+            or exit 1
+            ikshvaku run fenv python -c "import idna"
+            or exit 1
+            ikshvaku remove fenv
+            or exit 1
+            echo "✅ fish tier OK"
+          '
+
       - name: Install zsh (Ubuntu runners don't ship it)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y zsh
@@ -129,6 +167,7 @@ jobs:
           [ -n "$VIRTUAL_ENV" ] || { echo "❌ zsh activation failed"; exit 1; }
           pip --version
           deactivate
+          [ -f ~/.ikshvaku/completion.zsh ] && echo "✅ native zsh completion shipped"
           ikshvaku remove zshtest
           ikshvaku auto on > /dev/null
           mkdir -p "$HOME/zproj"
@@ -222,6 +261,22 @@ jobs:
           if (Test-Path (Join-Path $env:USERPROFILE '.Python-Env\clonetest')) { throw '❌ cleanup did not delete unlinked' }
           if (-not (Test-Path (Join-Path $env:USERPROFILE '.Python-Env\psproj'))) { throw '❌ cleanup deleted linked env' }
 
+      - name: Tier 4 (json / help / config --unset)
+        shell: pwsh
+        run: |
+          $env:Path = "$env:USERPROFILE\.local\bin;$env:Path"
+          . "$env:USERPROFILE\.ikshvaku\ikshvaku.ps1"
+          $j = (ikshvaku list --json | Out-String) | ConvertFrom-Json
+          if (-not $j) { throw '❌ list --json' }
+          $s = (ikshvaku status --json | Out-String) | ConvertFrom-Json
+          if (-not $s.version) { throw '❌ status --json' }
+          $h = (ikshvaku help cleanup | Out-String)
+          if ($h -notmatch 'days') { throw '❌ help' }
+          ikshvaku config cleanup_days 45 | Out-Null
+          ikshvaku config cleanup_days --unset | Out-Null
+          if (Get-IkshvakuConfig 'cleanup_days') { throw '❌ config --unset' }
+          Write-Host '✅ tier 4 (PowerShell)'
+
       - name: Version-pinned install
         shell: pwsh
         run: |
@@ -288,6 +343,22 @@ jobs:
           ikshvaku cleanup --days 0 --apply | Out-String -Stream | Select-String 'Deleted'
           if (Test-Path (Join-Path $env:USERPROFILE '.Python-Env\clonetest')) { throw '❌ cleanup did not delete unlinked' }
           if (-not (Test-Path (Join-Path $env:USERPROFILE '.Python-Env\psproj'))) { throw '❌ cleanup deleted linked env' }
+
+      - name: Tier 4 (json / help / config --unset)
+        shell: pwsh
+        run: |
+          $env:Path = "$env:USERPROFILE\.local\bin;$env:Path"
+          . "$env:USERPROFILE\.ikshvaku\ikshvaku.ps1"
+          $j = (ikshvaku list --json | Out-String) | ConvertFrom-Json
+          if (-not $j) { throw '❌ list --json' }
+          $s = (ikshvaku status --json | Out-String) | ConvertFrom-Json
+          if (-not $s.version) { throw '❌ status --json' }
+          $h = (ikshvaku help cleanup | Out-String)
+          if ($h -notmatch 'days') { throw '❌ help' }
+          ikshvaku config cleanup_days 45 | Out-Null
+          ikshvaku config cleanup_days --unset | Out-Null
+          if (Get-IkshvakuConfig 'cleanup_days') { throw '❌ config --unset' }
+          Write-Host '✅ tier 4 (PowerShell)'
 
       - name: Version-pinned install
         shell: pwsh

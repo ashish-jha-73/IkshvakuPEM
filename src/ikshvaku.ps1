@@ -2,7 +2,7 @@
 # Dot-sourced (from $PROFILE): defines the ikshvaku function.
 # Run as a script (from the ikshvaku.cmd shim): dispatches ikshvaku directly.
 
-$global:IkshvakuVersion = '1.3.0'
+$global:IkshvakuVersion = '1.4.0'
 $global:IkshvakuEnvDir = Join-Path $env:USERPROFILE '.Python-Env'
 $global:IkshvakuHome = Join-Path $env:USERPROFILE '.ikshvaku'
 $global:IkshvakuUvInstaller = 'https://astral.sh/uv/install.ps1'
@@ -131,6 +131,19 @@ function Set-IkshvakuConfig {
     Set-Content -LiteralPath $cfg -Value $kept
 }
 
+function Remove-IkshvakuConfig {
+    param([string]$Key)
+    $cfg = Join-Path $global:IkshvakuHome 'config'
+    if (-not (Test-Path $cfg)) { return }
+    $kept = @()
+    foreach ($line in @(Get-Content -LiteralPath $cfg -ErrorAction SilentlyContinue)) {
+        $i = $line.IndexOf('=')
+        if ($i -lt 1) { continue }
+        if ($line.Substring(0, $i) -ne $Key) { $kept += $line }
+    }
+    Set-Content -LiteralPath $cfg -Value $kept
+}
+
 function Test-IkshvakuRegistryEnvLinked {
     param([string]$EnvName)
     $reg = Join-Path $global:IkshvakuHome 'registry'
@@ -256,6 +269,17 @@ function ikshvaku {
                 Write-Host 'No environments yet. Create one: ikshvaku create <env>'
                 return
             }
+            if ($rest[0] -eq '--json') {
+                $rows = @()
+                foreach ($e in $envs) {
+                    $sum = (Get-ChildItem -LiteralPath $e.FullName -Recurse -File -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum
+                    $mb = 0
+                    if ($sum) { $mb = [math]::Round($sum / 1MB, 1) }
+                    $rows += [pscustomobject]@{ name = $e.Name; size = "$mb MB"; last_used = (Get-IkshvakuUsageLastUsed $e.Name) }
+                }
+                ConvertTo-Json -InputObject $rows
+                return
+            }
             if ($rest[0] -eq '--size') {
                 Write-Output ("{0,-18} {1,8}  {2}" -f 'ENV', 'SIZE', 'LAST USED')
                 foreach ($e in $envs) {
@@ -309,15 +333,19 @@ function ikshvaku {
             }
             Set-IkshvakuRegistryLink $dir $name
             Write-Host "Linked $dir -> '$name'" -ForegroundColor Green
-            # bootstrap: install dependencies if the project ships a requirements.txt
+            # bootstrap: install dependencies from requirements.txt or pyproject.toml
             $reqs = Join-Path $dir 'requirements.txt'
-            if ((Test-Path $reqs) -and (Test-Path (Join-Path $global:IkshvakuEnvDir $name))) {
+            $pyproj = Join-Path $dir 'pyproject.toml'
+            $depFile = $null
+            if (Test-Path $reqs) { $depFile = $reqs }
+            elseif (Test-Path $pyproj) { $depFile = $pyproj }
+            if ($depFile -and (Test-Path (Join-Path $global:IkshvakuEnvDir $name))) {
                 if (Get-Command uv -ErrorAction SilentlyContinue) {
-                    Write-Host 'Found requirements.txt — installing dependencies...'
+                    Write-Host "Found $(Split-Path $depFile -Leaf) - installing dependencies..."
                     $pyExe = Get-IkshvakuEnvPython (Join-Path $global:IkshvakuEnvDir $name)
-                    & uv pip install --python $pyExe -r $reqs
+                    & uv pip install --python $pyExe -r $depFile
                     if ($LASTEXITCODE -ne 0) {
-                        Write-Host '⚠️  dependency installation failed — the env is still usable' -ForegroundColor Yellow
+                        Write-Host '⚠️  dependency installation failed - the env is still usable' -ForegroundColor Yellow
                     }
                 }
             }
@@ -544,6 +572,8 @@ function ikshvaku {
             $cutoff = $now - ([int]$days * 86400)
             $total = 0
             $stale = 0
+            $dups = 0
+            $seen = @()
             foreach ($e in @(Get-ChildItem -LiteralPath $global:IkshvakuEnvDir -Directory -ErrorAction SilentlyContinue)) {
                 $total++
                 if (Test-IkshvakuRegistryEnvLinked $e.Name) {
@@ -576,17 +606,30 @@ function ikshvaku {
                     } else {
                         Write-Output ("  stale     {0,-18} last used {1}" -f $e.Name, $stamp)
                     }
+                } elseif (Get-Command uv -ErrorAction SilentlyContinue) {
+                    # duplicate detection: identical package sets are redundant
+                    $fz = (& uv pip freeze --python (Get-IkshvakuEnvPython $e.FullName) 2>$null | Out-String)
+                    if ($seen -contains $fz) {
+                        $dups++
+                        Write-Output ("  duplicate {0,-18} identical package set - remove with: ikshvaku remove {0}" -f $e.Name)
+                    } else {
+                        $seen += $fz
+                        Write-Output ("  keep      {0,-18} last used {1}" -f $e.Name, $stamp)
+                    }
                 } else {
                     Write-Output ("  keep      {0,-18} last used {1}" -f $e.Name, $stamp)
                 }
             }
             Write-Output ''
-            if ($stale -eq 0) {
+            if ($stale -eq 0 -and $dups -eq 0) {
                 Write-Output "Nothing to clean ($total environment(s) checked)."
             } elseif ($apply) {
                 Write-Output "Deleted $stale environment(s)."
             } else {
                 Write-Output "Dry run: $stale environment(s) would be deleted. Re-run with --apply."
+            }
+            if ($dups -gt 0) {
+                Write-Output "$dups duplicate environment(s) found (identical package sets)."
             }
             if ($doCache) {
                 if (Get-Command uv -ErrorAction SilentlyContinue) {
@@ -609,6 +652,15 @@ function ikshvaku {
                 Write-Output 'Available keys: python_default, cleanup_days'
                 return
             }
+            if ($rest[0] -notin @('python_default', 'cleanup_days')) {
+                Write-Host "Unknown key '$($rest[0])'. Available keys: python_default, cleanup_days" -ForegroundColor Red
+                return
+            }
+            if ($rest[1] -eq '--unset') {
+                Remove-IkshvakuConfig $rest[0]
+                Write-Output "Unset: $($rest[0])"
+                return
+            }
             if ($rest.Count -lt 2) {
                 $v = Get-IkshvakuConfig $rest[0]
                 if ($v) { Write-Output "$($rest[0])=$v" } else { Write-Output "$($rest[0]) is not set" }
@@ -618,12 +670,147 @@ function ikshvaku {
             Write-Output "Saved: $($rest[0])=$($rest[1])"
         }
 
+        'jupyter' {
+            if (-not $rest[0]) { Write-Host 'Usage: ikshvaku jupyter <env>'; return }
+            $envPath = Join-Path $global:IkshvakuEnvDir $rest[0]
+            if (-not (Test-Path $envPath)) { Write-Host "Env not found: $($rest[0])" -ForegroundColor Red; return }
+            if (-not (Install-IkshvakuUv)) { return }
+            $pyExe = Get-IkshvakuEnvPython $envPath
+            if (-not $pyExe) { Write-Host "Env '$($rest[0])' is missing its python" -ForegroundColor Red; return }
+            & $pyExe -c "import ipykernel" 2>$null
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "Installing ipykernel into '$($rest[0])'..."
+                & uv pip install --python $pyExe ipykernel
+                if ($LASTEXITCODE -ne 0) { Write-Host '⚠️  could not install ipykernel' -ForegroundColor Red; return }
+            }
+            & $pyExe -m ipykernel install --user --name "ikshvaku-$($rest[0])" --display-name "Python (ikshvaku: $($rest[0]))"
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "Kernel registered - select 'Python (ikshvaku: $($rest[0]))' in Jupyter." -ForegroundColor Green
+            }
+        }
+
+        'help' {
+            switch ($rest[0]) {
+                'create' {
+                    Write-Output 'ikshvaku create <env> [python-version]'
+                    Write-Output '  Create a seeded environment (real pip included).'
+                    Write-Output '  A python version is downloaded on demand: ikshvaku create web 3.12'
+                }
+                'init' {
+                    Write-Output 'ikshvaku init [env] [python-version]'
+                    Write-Output '  Link the current directory to an environment, creating it if needed.'
+                    Write-Output '  Installs requirements.txt / pyproject.toml dependencies when present.'
+                }
+                'activate' {
+                    Write-Output 'ikshvaku activate [env]'
+                    Write-Output "  Activate an environment. With no argument, uses this project's"
+                    Write-Output '  linked env (nearest parent directory).'
+                }
+                'install' {
+                    Write-Output 'ikshvaku install <env> <pkg...>   |   ikshvaku install <pkg...>'
+                    Write-Output '  Install packages into an environment (isolated cycle), or into the'
+                    Write-Output '  active environment when no env is named.'
+                }
+                'run' {
+                    Write-Output 'ikshvaku run <env> <cmd...>'
+                    Write-Output '  Run a command inside an environment without activating.'
+                    Write-Output '  Exit codes propagate: ikshvaku run web pytest -q'
+                }
+                'export' {
+                    Write-Output 'ikshvaku export <env>'
+                    Write-Output '  Print installed packages. Redirect: ikshvaku export web > requirements.txt'
+                }
+                'clone' {
+                    Write-Output 'ikshvaku clone <src> <dst>'
+                    Write-Output '  Duplicate an environment (same interpreter, packages included).'
+                }
+                'cleanup' {
+                    Write-Output 'ikshvaku cleanup [--days N] [--apply] [--cache]'
+                    Write-Output '  Find environments unused for N days (default 90). Dry-run by default;'
+                    Write-Output '  --apply deletes; --cache also prunes uv cache. Linked projects and'
+                    Write-Output '  the active env are always kept.'
+                }
+                'config' {
+                    Write-Output 'ikshvaku config [key [value]] | ikshvaku config <key> --unset'
+                    Write-Output '  Keys: python_default (used by create/init), cleanup_days (default 90).'
+                }
+                'jupyter' {
+                    Write-Output 'ikshvaku jupyter <env>'
+                    Write-Output '  Register the environment as a Jupyter kernel.'
+                }
+                'doctor' {
+                    Write-Output 'ikshvaku doctor'
+                    Write-Output '  Health check: installation, uv, shell integration, registry links,'
+                    Write-Output '  auto-activation state and uv cache size.'
+                }
+                'list' {
+                    Write-Output 'ikshvaku list [--size | --json]'
+                    Write-Output '  List environments; --size adds disk usage and last-used; --json emits JSON.'
+                }
+                'status' {
+                    Write-Output 'ikshvaku status [--json]'
+                    Write-Output '  Show the active env, project link, python version, package count, size.'
+                }
+                'auto' {
+                    Write-Output 'ikshvaku auto on|off'
+                    Write-Output '  Opt-in: switch environments automatically as you cd.'
+                }
+                'upgrade' {
+                    Write-Output 'ikshvaku upgrade'
+                    Write-Output '  Update Ikshvaku to the latest release. Homebrew users: brew upgrade ikshvaku'
+                }
+                'remove' {
+                    Write-Output 'ikshvaku remove <env>'
+                    Write-Output '  Delete an environment.'
+                }
+                default {
+                    Write-Output 'Usage: ikshvaku help <command>'
+                    Write-Output 'Commands: list create activate deactivate install remove init link unlink'
+                    Write-Output '          links status doctor auto run export clone cleanup config jupyter upgrade help'
+                }
+            }
+        }
+
         'status' {
             Write-Output "ikshvaku $global:IkshvakuVersion"
             if ($env:IKSHVAKU_ACTIVE) {
                 Write-Output ("Active env:   {0}  ({1})" -f $env:IKSHVAKU_ACTIVE, (Join-Path $global:IkshvakuEnvDir $env:IKSHVAKU_ACTIVE))
             } else {
                 Write-Output 'Active env:   none'
+            }
+            $here = (Get-Location).Path
+            if ($rest[0] -eq '--json') {
+                $linked = Get-IkshvakuRegistryLink $here
+                $via = 'this directory'
+                if (-not $linked) {
+                    $linked = IkshvakuAutoLookup $here
+                    if ($linked) { $via = 'parent directory' }
+                }
+                $show = $env:IKSHVAKU_ACTIVE
+                if (-not $show) { $show = $linked }
+                $py = ''
+                $pkgs = 0
+                $size = ''
+                if ($show -and (Test-Path (Join-Path $global:IkshvakuEnvDir $show) -PathType Container)) {
+                    $envPath = Join-Path $global:IkshvakuEnvDir $show
+                    $pyExe = Get-IkshvakuEnvPython $envPath
+                    if ($pyExe) { $py = (& $pyExe --version 2>&1 | Out-String).Trim() }
+                    if (Get-Command uv -ErrorAction SilentlyContinue) {
+                        $pkgs = (& uv pip list --python $envPath 2>$null | Select-Object -Skip 2 | Measure-Object).Count
+                    }
+                    $sum = (Get-ChildItem -LiteralPath $envPath -Recurse -File -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum
+                    if ($sum) { $size = "$([math]::Round($sum / 1MB, 1)) MB" }
+                }
+                ConvertTo-Json -InputObject ([pscustomobject]@{
+                    version = $global:IkshvakuVersion
+                    active = $env:IKSHVAKU_ACTIVE
+                    linked_env = $linked
+                    linked_via = $via
+                    python = $py
+                    packages = $pkgs
+                    size = $size
+                })
+                return
             }
             $here = (Get-Location).Path
             $linked = Get-IkshvakuRegistryLink $here
@@ -806,6 +993,8 @@ function ikshvaku {
             Write-Host '  ikshvaku clone <src> <dst>             duplicate an environment'
             Write-Host '  ikshvaku cleanup [--days N] [--apply] [--cache]'
             Write-Host '  ikshvaku config [key [value]]          python_default, cleanup_days'
+            Write-Host '  ikshvaku jupyter <env>                 register env as a Jupyter kernel'
+            Write-Host '  ikshvaku help <command>                detailed help for a command'
             Write-Host '  ikshvaku auto on|off                   switch envs automatically on cd'
             Write-Host '  ikshvaku upgrade                       update to the latest release'
             Write-Host '  ikshvaku remove <env>'
@@ -820,7 +1009,7 @@ function ikshvaku {
 # Tab completion for commands and environment names
 Register-ArgumentCompleter -CommandName ikshvaku -ScriptBlock {
     param($wordToComplete, $commandAst, $cursorPosition)
-    $commands = @('list', 'create', 'activate', 'deactivate', 'install', 'remove', 'init', 'link', 'unlink', 'links', 'status', 'doctor', 'auto', 'run', 'export', 'clone', 'cleanup', 'config', 'upgrade')
+    $commands = @('list', 'create', 'activate', 'deactivate', 'install', 'remove', 'init', 'link', 'unlink', 'links', 'status', 'doctor', 'auto', 'run', 'export', 'clone', 'cleanup', 'config', 'jupyter', 'help', 'upgrade')
     $elems = @($commandAst.CommandElements)
     if ($elems.Count -le 2) {
         $commands | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {

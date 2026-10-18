@@ -3,9 +3,30 @@
 All notable changes to Ikshvaku are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/); versioning follows [SemVer](https://semver.org/).
 
-## [1.3.0] — 2026-10-19
+## [1.4.0] — 2026-10-19
 
-Distribution release: Homebrew, GitHub Action, self-update, pinned installs.
+Polish release: JSON output, first-class help, Jupyter integration, Fish
+support, and a wave of hardening.
+
+### Added
+- **`--json` output** for `list`, `status` and `links` — scriptable, CI-ready.
+- **`ikshvaku help <command>`** — detailed help for every command.
+- **`ikshvaku prompt`** — a `'(env) '` prefix helper for custom PS1 prompts.
+- **`ikshvaku jupyter <env>`** — registers an environment as a Jupyter kernel
+  (installs `ipykernel` into the env automatically).
+- **`init` reads `pyproject.toml`** — installs `[project]` dependencies when
+  no `requirements.txt` is present.
+- **`config <key> --unset`** and key validation.
+- **Fish support** — full-featured `src/ikshvaku.fish`: core commands,
+  auto-activation via PWD events, and fish tab completion.
+- **Native zsh completion** (`src/completion.zsh`) — zsh users no longer need
+  the bashcompinit shim.
+- **`cleanup` hardening** — a concurrency lock prevents parallel runs, and
+  environments with identical package sets are reported as duplicates.
+- **Installer** now ships the fish script and native zsh completion, and
+  integrates with `~/.config/fish/config.fish`.
+
+## [1.3.0] — 2026-10-19Distribution release: Homebrew, GitHub Action, self-update, pinned installs.
 
 ### Added
 - **`ikshvaku upgrade`** — re-runs the platform installer to move to the
