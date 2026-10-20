@@ -10,7 +10,7 @@ Write-Host ':: Uninstalling Ikshvaku...'
 
 if (Test-Path $profilePath) {
     $content = Get-Content -LiteralPath $profilePath -Raw
-    $cleaned = $content -replace '(?s)\r?\n?# >>> Ikshvaku >>>.*?# <<< Ikshvaku <<<\r?\n?', ''
+    $cleaned = $content -replace '(?s)\r?\n?# >>> Ikshvaku(PEM)? >>>.*?# <<< Ikshvaku(PEM)? <<<\r?\n?', ''
     Set-Content -LiteralPath $profilePath -Value $cleaned -NoNewline
 }
 

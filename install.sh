@@ -144,9 +144,9 @@ chmod +x "$INSTALL_DIR"/*.sh
 
 ln -sf "$INSTALL_DIR/uninstall.sh" "$BIN_DIR/ikshvaku-uninstall"
 
-if ! grep -q ">>> Ikshvaku >>>" "$RC_FILE"; then
+if ! grep -qE ">>> Ikshvaku(PEM)? >>>" "$RC_FILE"; then
   {
-    printf '\n# >>> Ikshvaku >>>\n'
+    printf '\n# >>> IkshvakuPEM >>>\n'
     if [ "$SHELL_NAME" = "fish" ]; then
       printf 'source ~/.ikshvaku/ikshvaku.fish\n'
     elif [ "$SHELL_NAME" = "zsh" ]; then
@@ -161,7 +161,7 @@ if ! grep -q ">>> Ikshvaku >>>" "$RC_FILE"; then
       printf 'source ~/.ikshvaku/ikshvaku.sh\n'
       printf 'source ~/.ikshvaku/completion.sh\n'
     fi
-    printf '# <<< Ikshvaku <<<\n'
+    printf '# <<< IkshvakuPEM <<<\n'
   } >> "$RC_FILE"
 fi
 

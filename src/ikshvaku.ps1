@@ -900,7 +900,7 @@ function ikshvaku {
                 Write-Output 'ℹ️  environments: none yet'
             }
             $prof = $PROFILE.CurrentUserAllHosts
-            $blocks = @(Select-String -LiteralPath $prof -Pattern '>>> Ikshvaku >>>' -ErrorAction SilentlyContinue).Count
+            $blocks = @(Select-String -LiteralPath $prof -Pattern '>>> Ikshvaku(PEM)? >>>' -ErrorAction SilentlyContinue).Count
             if ($blocks -eq 1) {
                 Write-Output "✅ shell integration: $prof"
             } elseif ($blocks -eq 0) {

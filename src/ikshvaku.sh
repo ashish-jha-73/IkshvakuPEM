@@ -753,7 +753,7 @@ ikshvaku() {
             local rc blocks
             rc="$HOME/.bashrc"
             case "$(basename "${SHELL:-bash}")" in zsh) rc="$HOME/.zshrc" ;; esac
-            blocks=$(grep -c ">>> Ikshvaku >>>" "$rc" 2>/dev/null || true)
+            blocks=$(grep -cE ">>> Ikshvaku(PEM)? >>>" "$rc" 2>/dev/null || true)
             blocks=${blocks:-0}
             if [ "$blocks" -eq 1 ]; then
                 echo "✅ shell integration: $rc"

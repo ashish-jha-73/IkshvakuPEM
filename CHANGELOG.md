@@ -3,6 +3,13 @@
 All notable changes to Ikshvaku are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/); versioning follows [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+- New installs write `# >>> IkshvakuPEM >>>` marker blocks to the shell rc
+  file (previously `# >>> Ikshvaku >>>`). The uninstaller removes both the
+  new and the legacy markers, and `ikshvaku doctor` recognizes either.
+
 ## [1.4.0] — 2026-10-19
 
 Polish release: JSON output, first-class help, Jupyter integration, Fish

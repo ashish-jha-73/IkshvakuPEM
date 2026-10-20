@@ -119,9 +119,9 @@ $existing = Get-Content -LiteralPath $profilePath -Raw -ErrorAction SilentlyCont
 if (-not $existing -or $existing -notmatch 'ikshvaku\.ps1') {
     Add-Content -LiteralPath $profilePath -Value @"
 
-# >>> Ikshvaku >>>
+# >>> IkshvakuPEM >>>
 . "`$env:USERPROFILE\.ikshvaku\ikshvaku.ps1"
-# <<< Ikshvaku <<<
+# <<< IkshvakuPEM <<<
 "@
 }
 

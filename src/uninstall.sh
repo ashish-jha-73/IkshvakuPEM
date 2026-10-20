@@ -21,7 +21,9 @@ ikshvaku_sed_inplace() {
 
 for RC_FILE in "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.config/fish/config.fish"; do
   if [ -f "$RC_FILE" ]; then
-    # Remove the marker-delimited block written by recent installers
+    # Remove the marker-delimited block written by recent installers (IkshvakuPEM)
+    ikshvaku_sed_inplace '/^# >>> IkshvakuPEM >>>$/,/^# <<< IkshvakuPEM <<<$/d' "$RC_FILE"
+    # Legacy (pre-rename) marker block, for installs from older versions
     ikshvaku_sed_inplace '/^# >>> Ikshvaku >>>$/,/^# <<< Ikshvaku <<<$/d' "$RC_FILE"
     # Legacy (pre-marker) lines, for installs from older versions
     ikshvaku_sed_inplace '/ikshvaku\/ikshvaku\.sh/d' "$RC_FILE"
